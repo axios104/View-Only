@@ -1,0 +1,98 @@
+/*======================================================
+    THEME TOKENS
+    -All design tokens are defined here
+    -Light theme-> :root
+    -Dark theme-> .dark
+    -and are configured in tailwind.config.js
+    -Raw colors are not to be used in components
+========================================================*/
+:root {
+  --color-primary: #2257c5;
+  --color-secondary: #0d7d8f;
+  --color-tertiary: #fafafa;
+  --color-bg-body: #f3fdff;
+  --color-bg-btn: var(--color-tertiary);
+  --color-bg-scrollbar-track: #cfdfeb;
+  --color-bg-card: #ffffff;
+  --color-bg-footer: #cbe4e9;
+  --color-bg-odd-row: #f5f8fc;
+  --color-bg-even-row: var(--color-tertiary);
+  --color-bg-process-level-1: #8fa4df;
+  --color-bg-process-level-2: #60aee8;
+  --color-bg-process-level-3: #339576;
+  --color-bg-process-level-4: #cb6f57;
+  --color-bg-sap-function: var(--color-primary);
+  --color-bg-legacy-function: #a056ff;
+  --color-bg-manual-function: var(--color-bg-process-level-4);
+  --color-bg-neutral-node: #cfd6d8;
+  --color-bg-icon: #cee5e9;
+  --color-accent: var(--color-secondary);
+  --primary-foreground: var(--color-tertiary);
+  --color-border: #e6f3fa;
+  --color-text-primary: #454545;
+  --color-text-secondary: #fafafa;
+  --color-text-btn: #1a0000;
+  --color-text-tertiary: var(--color-secondary);
+  --color-scrollbar-thumb: var(--color-secondary);
+  --gradient-primary: linear-gradient(to right, #2257c5, #0d7d8f);
+  --gradient-blob: radial-gradient(
+    circle,
+    #89bec763 0%,
+    #89bec763 49%,
+    #cae1e5a1 35%,
+    #cae1e5a1 65%,
+    transparent 65%
+  );
+  --font-primary: 'SamsungSans';
+  --font-size-body: var(--font-size-md);
+  --radius: 4px;
+  --radius-lg: 8px;
+  --font-size-xs: 10px;
+  --font-size-sm: 12px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 18px;
+  --button-px-lg: 24px;
+  --button-px-md: 16px;
+  --list-p: 4px 8px;
+  --h-main-section: calc(100vh - 144px);
+}
+
+.dark {
+  --color-primary: #3167d6;
+  --color-secondary: #0990af;
+  --color-tertiary: #fafafa;
+  --color-bg-body: #1b1a17;
+  --color-bg-btn: linear-gradient(
+    to right,
+    var(--color-primary),
+    var(--color-secondary)
+  );
+  --color-bg-scrollbar-track: var(--color-secondary);
+  --color-bg-card: #20222e;
+  --color-bg-footer: #2b2d3a;
+  --color-bg-odd-row: #20222e;
+  --color-bg-even-row: #2b2d3a;
+  --color-bg-process-level-1: #8fa4df;
+  --color-bg-process-level-2: #60aee8;
+  --color-bg-process-level-3: #339576;
+  --color-bg-process-level-4: #cb6f57;
+  --color-bg-sap-function: var(--color-primary);
+  --color-bg-legacy-function: #a056ff;
+  --color-bg-manual-function: var(--color-bg-process-level-4);
+  --color-bg-neutral-node: #cfd6d8;
+  --color-accent: var(--color-secondary);
+  --primary-foreground: var(--color-tertiary);
+  --color-border: #2b3e51;
+  --color-text-primary: #d0d1d3;
+  --color-text-secondary: var(--color-tertiary);
+  --color-text-btn: #1a0000;
+  --color-text-tertiary: var(--color-tertiary);
+  --color-scrollbar-thumb: var(--color-primary);
+  --gradient-primary: linear-gradient(
+    to right,
+    var(--color-primary),
+    var(--color-secondary)
+  );
+}
+

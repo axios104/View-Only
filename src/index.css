@@ -1,0 +1,119 @@
+/*=============GLOBAL STYLES===============*/
+@import './theme.css';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *,
+  ::before,
+  ::after {
+    padding: 0;
+    margin: 0;
+    box-sizing: border-box;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    font-family: SamsungSans !important;
+    font-size: var(--font-size-body);
+    background-color: var(--color-bg-body);
+    color: var(--color-text-primary);
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+  main,
+  section,
+  div {
+    min-height: 0px;
+    min-width: 0px;
+  }
+  img,
+  svg {
+    display: block;
+    width: 100%;
+  }
+  input,
+  button,
+  textarea,
+  select {
+    font: inherit;
+  }
+  h1 {
+    @apply text-3xl font-bold;
+  }
+  h2 {
+    @apply text-2xl font-bold;
+  }
+  h3 {
+    @apply text-xl font-bold;
+  }
+  h4 {
+    @apply text-lg font-bold;
+  }
+  h5 {
+    @apply text-base font-bold;
+  }
+  h6 {
+    @apply text-xs font-bold;
+  }
+  ul.app-list > li {
+    border-bottom: 1px solid var(--color-border);
+    padding: var(--list-p);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+  }
+}
+
+/*FONT FAMILY CONFIGURATION*/
+@font-face {
+  font-family: SamsungSans;
+  src: url(./assets/fonts/SamsungSans-Thin.ttf);
+  font-weight: 200;
+  font-style: normal;
+}
+@font-face {
+  font-family: SamsungSans;
+  src: url(./assets/fonts/SamsungSans-Light.ttf);
+  font-weight: 300;
+  font-style: normal;
+}
+@font-face {
+  font-family: SamsungSans;
+  src: url(./assets/fonts/SamsungSans-Regular.ttf);
+  font-weight: normal;
+  font-style: normal;
+}
+@font-face {
+  font-family: SamsungSans;
+  src: url(./assets/fonts/SamsungSans-Medium.ttf);
+  font-weight: 600;
+  font-style: normal;
+}
+@font-face {
+  font-family: SamsungSans;
+  src: url(./assets/fonts/SamsungSans-Bold.ttf);
+  font-weight: bold;
+  font-style: normal;
+}
+
+/*SCROLLBAR STYLING*/
+::-webkit-scrollbar {
+  width: 0.35rem;
+  height: 0.35rem;
+}
+::-webkit-scrollbar-track {
+  background-color: var(--color-bg-scrollbar-track);
+}
+::-webkit-scrollbar-thumb {
+  background-color: var(--color-scrollbar-thumb);
+  border-radius: 2rem;
+}
+.dark .text-card-foreground {
+  border-color: #1b1a17 !important;
+}
