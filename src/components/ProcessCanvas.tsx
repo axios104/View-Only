@@ -73,7 +73,6 @@ function NodeBg({ shape, fill, border }: { shape: NodeShape, fill: string, borde
 }
 
 function Node({ n }: { n: PositionedRoadmapNode }) {
-  // Reduced base text size to 10px to accommodate smaller node sizes
   const base = 'absolute grid select-none place-items-center text-center text-[10px] leading-tight transition-transform duration-150 hover:brightness-105 hover:scale-105 z-10 cursor-pointer'
 
   return (
@@ -129,8 +128,6 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
 
   const laneWidth = diagram.lanes.length > 0 ? diagram.canvas.width / diagram.lanes.length : diagram.canvas.width
   const headerH = 64
-  
-  // Must match the rowGap exported from layoutRoadmap.ts
   const rowGap = 90
 
   const positionedNodes = useMemo(() => {
@@ -140,6 +137,42 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
   const maxLevel = positionedNodes.reduce((acc, n) => Math.max(acc, n.level), 0)
   const contentHeight = headerH + (maxLevel + 1) * rowGap
   const docHeight = Math.max(diagram.canvas.height, contentHeight + 50)
+
+  // Bounds Calculator: Prevent infinite scrolling
+  const getClampedTranslate = (nextTx: number, nextTy: number, currentScale: number) => {
+    const el = viewportRef.current
+    if (!el) return { tx: nextTx, ty: nextTy }
+    
+    const rect = el.getBoundingClientRect()
+    const padding = 50
+    
+    const scaledW = diagram.canvas.width * currentScale
+    let minTx, maxTx
+    if (scaledW + padding * 2 < rect.width) {
+      // Content fits fully inside horizontally. Lock to center.
+      minTx = maxTx = (rect.width - scaledW) / 2
+    } else {
+      // Content larger than viewport. Normal padding bounds.
+      minTx = rect.width - scaledW - padding
+      maxTx = padding
+    }
+
+    const scaledH = docHeight * currentScale
+    let minTy, maxTy
+    if (scaledH + padding * 2 < rect.height) {
+      // Content fits fully inside vertically. Lock to top edge with padding.
+      minTy = maxTy = padding
+    } else {
+      // Content larger than viewport. Normal padding bounds.
+      minTy = rect.height - scaledH - padding
+      maxTy = padding
+    }
+
+    return {
+      tx: Math.max(minTx, Math.min(maxTx, nextTx)),
+      ty: Math.max(minTy, Math.min(maxTy, nextTy)),
+    }
+  }
 
   const nodesById = useMemo(() => {
     const m = new Map<string, PositionedRoadmapNode>()
@@ -169,11 +202,11 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
     const worldX = (px - tx) / scale
     const worldY = (py - ty) / scale
 
-    const clamped = Math.max(0.25, Math.min(4.0, nextScale))
-    const nextTx = px - worldX * clamped
-    const nextTy = py - worldY * clamped
-    dispatch(setScale(clamped))
-    dispatch(setTranslate({ tx: nextTx, ty: nextTy }))
+    const clampedScale = Math.max(0.25, Math.min(4.0, nextScale))
+    const nextTx = px - worldX * clampedScale
+    const nextTy = py - worldY * clampedScale
+    dispatch(setScale(clampedScale))
+    dispatch(setTranslate(getClampedTranslate(nextTx, nextTy, clampedScale)))
   }
 
   const fit = () => {
@@ -181,12 +214,15 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
     if (!el) return
     const rect = el.getBoundingClientRect()
     
-    // Fit only horizontally, make it scrollable vertically
+    // Fit only horizontally, accommodate our padding boundary math
     const contentW = Math.max(1, diagram.canvas.width)
-    const targetScale = Math.max(0.25, Math.min(2.5, (rect.width - 50) / contentW))
+    const targetScale = Math.max(0.25, Math.min(2.5, (rect.width - 100) / contentW))
+    
+    const nextTx = (rect.width - contentW * targetScale) / 2
+    const nextTy = 50
     
     dispatch(setScale(targetScale))
-    dispatch(setTranslate({ tx: (rect.width - contentW * targetScale) / 2, ty: 50 }))
+    dispatch(setTranslate(getClampedTranslate(nextTx, nextTy, targetScale)))
   }
 
   useImperativeHandle(ref, () => ({
@@ -200,7 +236,7 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
     },
     reset: fit,
     fit,
-  }), [dispatch, scale])
+  }), [dispatch, scale, docHeight])
 
   return (
     <div
@@ -210,12 +246,11 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
         className ?? ''].join(' ')}
       style={{ touchAction: 'none' }}
       onWheel={(e) => {
-        // Allow zoom on scroll wheel + Ctrl, or default to standard pan
         if (e.ctrlKey || e.metaKey) {
           e.preventDefault()
           zoomAround(scale * (e.deltaY > 0 ? 0.92 : 1.08), e.clientX, e.clientY)
         } else {
-          dispatch(setTranslate({ tx: tx - e.deltaX, ty: ty - e.deltaY }))
+          dispatch(setTranslate(getClampedTranslate(tx - e.deltaX, ty - e.deltaY, scale)))
         }
       }}
       onPointerDown={(e) => {
@@ -247,8 +282,10 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
           const dx = ev.clientX - lastPointerRef.current!.x
           const dy = ev.clientY - lastPointerRef.current!.y
           lastPointerRef.current = { x: ev.clientX, y: ev.clientY }
-          currentTx += dx
-          currentTy += dy
+          
+          const clamped = getClampedTranslate(currentTx + dx, currentTy + dy, scale)
+          currentTx = clamped.tx
+          currentTy = clamped.ty
 
           if (!clickCandidateRef.current.moved && (Math.abs(dx) > 2 || Math.abs(dy) > 2)) {
             clickCandidateRef.current.moved = true
@@ -345,7 +382,8 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
         scale={scale} 
         tx={tx} 
         ty={ty} 
-        onJump={(next) => dispatch(setTranslate(next))}
+        // Force minimap to respect bounds when jumping
+        onJump={(next) => dispatch(setTranslate(getClampedTranslate(next.tx, next.ty, scale)))}
         positionedNodes={positionedNodes}
         edges={edges}
       />
