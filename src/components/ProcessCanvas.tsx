@@ -1,5 +1,5 @@
 import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from 'react'
-import type { Anchor, Person, RoadmapDiagram, WorkType, NodeShape, Lane } from '../types/roadmap'
+import type { Anchor, Person, RoadmapDiagram, NodeShape, Lane } from '../types/roadmap'
 import { setTranslate, setScale } from '../store/canvasSlice'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
 import { Avatar } from './Avatar'
@@ -18,20 +18,6 @@ export type ProcessCanvasApi = {
   zoomOut: () => void
   reset: () => void
   fit: () => void
-}
-
-const workTypeFill: Record<WorkType, string> = {
-  sap: 'var(--color-bg-sap-function)',
-  legacy: 'var(--color-bg-legacy-function)',
-  manual: 'var(--color-bg-manual-function)',
-  neutral: 'var(--color-bg-neutral-node)',
-}
-
-const workTypeText: Record<WorkType, string> = {
-  sap: 'var(--color-text-secondary)',
-  legacy: 'var(--color-text-secondary)',
-  manual: 'var(--color-text-secondary)',
-  neutral: 'var(--color-text-primary)',
 }
 
 function anchorPoint(n: PositionedRoadmapNode, a: Anchor): { x: number; y: number } {
@@ -69,7 +55,7 @@ function NodeBg({ shape, fill, border }: { shape: NodeShape, fill: string, borde
     )
   }
   if (shape === 'rounded-rect' || shape === 'rect') {
-    const rx = shape === 'rounded-rect' ? "16" : "2"
+    const rx = shape === 'rounded-rect' ? "12" : "2"
     return (
       <svg className="absolute inset-0 h-full w-full drop-shadow-sm" preserveAspectRatio="none" viewBox="0 0 100 100">
         <rect x="2" y="2" width="96" height="96" rx={rx} fill={fill} stroke={border} strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
@@ -87,10 +73,8 @@ function NodeBg({ shape, fill, border }: { shape: NodeShape, fill: string, borde
 }
 
 function Node({ n }: { n: PositionedRoadmapNode }) {
-  const base = 'absolute grid select-none place-items-center text-center text-[11.5px] leading-tight transition-transform duration-150 hover:brightness-105 hover:scale-105 z-10 cursor-pointer'
-  const fill = n.style?.fill ?? workTypeFill[n.workType]
-  const text = n.style?.text ?? workTypeText[n.workType]
-  const border = n.style?.border ?? 'rgba(0,0,0,0.1)'
+  // Reduced base text size to 10px to accommodate smaller node sizes
+  const base = 'absolute grid select-none place-items-center text-center text-[10px] leading-tight transition-transform duration-150 hover:brightness-105 hover:scale-105 z-10 cursor-pointer'
 
   return (
     <div
@@ -103,12 +87,12 @@ function Node({ n }: { n: PositionedRoadmapNode }) {
         top: n.y,
         width: n.w,
         height: n.h,
-        color: text,
+        color: n.style.text,
         fontWeight: 600
       }}
     >
-      <NodeBg shape={n.shape} fill={fill} border={border} />
-      <div className="relative z-10 flex h-full w-full items-center justify-center p-3 text-center">
+      <NodeBg shape={n.shape} fill={n.style.fill} border={n.style.border} />
+      <div className="relative z-10 flex h-full w-full items-center justify-center p-2 text-center">
         <div>
           {n.label.split('\n').map((line, idx) => (
             <div key={idx}>{line}</div>
@@ -145,7 +129,9 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
 
   const laneWidth = diagram.lanes.length > 0 ? diagram.canvas.width / diagram.lanes.length : diagram.canvas.width
   const headerH = 64
-  const rowGap = 120
+  
+  // Must match the rowGap exported from layoutRoadmap.ts
+  const rowGap = 90
 
   const positionedNodes = useMemo(() => {
     return layoutRoadmapNodes(diagram, { laneWidth, headerH, rowGap })
@@ -168,7 +154,7 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
       if (!fromN || !toN) return null
       const from = anchorPoint(fromN, e.fromAnchor ?? 'right')
       const to = anchorPoint(toN, e.toAnchor ?? 'left')
-      const connector = fromN.style?.border ?? fromN.style?.connector ?? '#666'
+      const connector = fromN.style?.border ?? '#666'
       return { id: e.id, from, to, connector, label: e.label ?? null }
     }).filter(Boolean) as any[]
   }, [diagram.edges, nodesById])
@@ -195,10 +181,9 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
     if (!el) return
     const rect = el.getBoundingClientRect()
     
-    let minX = 0, minY = 0, maxX = diagram.canvas.width, maxY = contentHeight
-    const contentW = Math.max(1, maxX - minX)
-    const contentH = Math.max(1, maxY - minY)
-    const targetScale = Math.max(0.25, Math.min(2.5, Math.min((rect.width - 100) / contentW, (rect.height - 100) / contentH)))
+    // Fit only horizontally, make it scrollable vertically
+    const contentW = Math.max(1, diagram.canvas.width)
+    const targetScale = Math.max(0.25, Math.min(2.5, (rect.width - 50) / contentW))
     
     dispatch(setScale(targetScale))
     dispatch(setTranslate({ tx: (rect.width - contentW * targetScale) / 2, ty: 50 }))
@@ -215,7 +200,7 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
     },
     reset: fit,
     fit,
-  }), [dispatch, scale, contentHeight])
+  }), [dispatch, scale])
 
   return (
     <div
@@ -297,7 +282,6 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
         window.addEventListener('pointerup', onUp)
       }}
     >
-      {/* Restored previous background & scaled dynamically with zooming */}
       <div className="absolute inset-0 pointer-events-none"
         style={{
           backgroundImage: 'radial-gradient(circle, color-mix(in srgb, var(--color-border) 95%, transparent) 1px, transparent 1px)',
@@ -344,7 +328,7 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
                   stroke={e.connector} strokeWidth={3} fill="none" strokeOpacity={0.8} strokeLinejoin="round" />
                 <circle cx={e.to.x} cy={e.to.y} r={5} fill={e.connector} />
                 {e.label && (
-                  <text x={midX} y={midY - 10} textAnchor="middle" fontSize={13} fill="var(--color-text-primary)" fontWeight={700}>
+                  <text x={midX} y={midY - 10} textAnchor="middle" fontSize={11} fill="var(--color-text-primary)" fontWeight={700}>
                     {e.label}
                   </text>
                 )}
@@ -354,7 +338,17 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
         </svg>
         {positionedNodes.map((n) => <Node key={n.id} n={n} />)}
       </div>
-      <MiniMap diagram={diagram} docHeight={docHeight} viewportRef={viewportRef} scale={scale} tx={tx} ty={ty} onJump={(next) => dispatch(setTranslate(next))} />
+      <MiniMap 
+        diagram={diagram} 
+        docHeight={docHeight} 
+        viewportRef={viewportRef} 
+        scale={scale} 
+        tx={tx} 
+        ty={ty} 
+        onJump={(next) => dispatch(setTranslate(next))}
+        positionedNodes={positionedNodes}
+        edges={edges}
+      />
     </div>
   )
 })
@@ -367,9 +361,11 @@ type MiniMapProps = {
   tx: number
   ty: number
   onJump: (pos: { tx: number; ty: number }) => void
+  positionedNodes: PositionedRoadmapNode[]
+  edges: any[]
 }
 
-function MiniMap({ diagram, docHeight, viewportRef, scale, tx, ty, onJump }: MiniMapProps) {
+function MiniMap({ diagram, docHeight, viewportRef, scale, tx, ty, onJump, positionedNodes, edges }: MiniMapProps) {
   const miniWidth = 220
   const miniHeight = 160
   const s = Math.min(miniWidth / diagram.canvas.width, miniHeight / docHeight)
@@ -393,6 +389,23 @@ function MiniMap({ diagram, docHeight, viewportRef, scale, tx, ty, onJump }: Min
         onPointerUp={(e) => { setIsDragging(false); e.currentTarget.releasePointerCapture(e.pointerId); }}
       >
         <div className="absolute inset-0 pointer-events-none opacity-20 bg-primary/10" />
+        
+        {/* Render a miniature structural version of the chart elements inside the minimap */}
+        <div className="absolute inset-0 pointer-events-none">
+          <svg width="100%" height="100%" viewBox={`0 0 ${diagram.canvas.width} ${docHeight}`}>
+            {edges.map((e) => {
+              const midX = (e.from.x + e.to.x) / 2
+              return (
+                <path key={`mini-${e.id}`} d={`M ${e.from.x} ${e.from.y} L ${midX} ${e.from.y} L ${midX} ${e.to.y} L ${e.to.x} ${e.to.y}`}
+                  stroke={e.connector} strokeWidth={8} fill="none" opacity={0.6} />
+              )
+            })}
+            {positionedNodes.map(n => (
+              <rect key={`mini-${n.id}`} x={n.x} y={n.y} width={n.w} height={n.h} fill={n.style.fill} stroke={n.style.border} strokeWidth={4} rx={10} />
+            ))}
+          </svg>
+        </div>
+
         {viewportRef.current && (
           <div className="absolute border-[1.5px] border-primary bg-primary/20 pointer-events-none shadow-sm transition-none"
             style={{

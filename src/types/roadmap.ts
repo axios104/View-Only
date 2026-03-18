@@ -1,5 +1,3 @@
-export type WorkType = 'sap' | 'legacy' | 'manual' | 'neutral'
-
 export type Lane = {
   id: string
   title: string
@@ -21,21 +19,10 @@ export type Anchor = 'left' | 'right' | 'top' | 'bottom' | 'center'
 export type RoadmapNode = {
   id: string
   laneId: string
-  /** Horizontal position modifier within the same level (0 is center, -0.5 is left, etc.). */
   order: number
-  /** Vertical grid placement (row). */
   level: number
   label: string
-  shape: NodeShape
-  workType: WorkType
-  w: number
-  h: number
-  style?: {
-    fill?: string
-    text?: string
-    border?: string
-    connector?: string
-  }
+  type: string // e.g. 'start', 'end', 'process-blue', 'decision', etc.
 }
 
 export type RoadmapEdge = {

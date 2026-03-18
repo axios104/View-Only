@@ -12,100 +12,28 @@ export const mockRoadmapDiagram: RoadmapDiagram = {
   ],
   nodes: [
     // Lane 1
-    {
-      id: 'n2', laneId: 'l1', label: '5.1.1.81. Customer\nGroup\nManagement.Substrate', level: 2, order: 0,
-      shape: 'hexagon', workType: 'neutral', w: 160, h: 75,
-      style: { fill: '#ccffcc', border: '#006600', text: '#000' }
-    },
-    {
-      id: 'n3', laneId: 'l1', label: '5.4.1.11. Normal\nselling price\nregistration.Substrate', level: 3, order: 0,
-      shape: 'hexagon', workType: 'neutral', w: 160, h: 75,
-      style: { fill: '#ccffcc', border: '#006600', text: '#000' }
-    },
+    { id: 'n2', laneId: 'l1', label: '5.1.1.81. Customer\nGroup\nManagement.Substrate', level: 2, order: 0, type: 'substrate' },
+    { id: 'n3', laneId: 'l1', label: '5.4.1.11. Normal\nselling price\nregistration.Substrate', level: 3, order: 0, type: 'substrate' },
 
     // Lane 2
-    {
-      id: 'n1', laneId: 'l2', label: 'Normal order\ncreation start', level: 0, order: -0.5,
-      shape: 'rounded-rect', workType: 'neutral', w: 130, h: 55,
-      style: { fill: '#ffcccc', border: '#cc0000', text: '#000' }
-    },
-    {
-      id: 'n4', laneId: 'l2', label: 'Get the PO of the\ncustomer', level: 1, order: 0.5,
-      shape: 'rect', workType: 'neutral', w: 130, h: 55,
-      style: { fill: '#ffcccc', border: '#cc0000', text: '#000' }
-    },
-    {
-      id: 'n5', laneId: 'l2', label: '거래선PO입력\n(KO)', level: 2.5, order: 0.5,
-      shape: 'rect', workType: 'neutral', w: 130, h: 55,
-      style: { fill: '#cce5ff', border: '#000066', text: '#000' }
-    },
-    {
-      id: 'n6', laneId: 'l2', label: 'SalesPrice', level: 3.5, order: -0.5,
-      shape: 'document', workType: 'neutral', w: 110, h: 45,
-      style: { fill: '#e6e6e6', border: '#666666', text: '#000' }
-    },
-    {
-      id: 'n7', laneId: 'l2', label: 'OI Master', level: 4.5, order: -0.5,
-      shape: 'document', workType: 'neutral', w: 110, h: 45,
-      style: { fill: '#e6e6e6', border: '#666666', text: '#000' }
-    },
-    {
-      id: 'n8', laneId: 'l2', label: 'Request Proposal', level: 4, order: 0.5,
-      shape: 'rect', workType: 'neutral', w: 130, h: 55,
-      style: { fill: '#cce5ff', border: '#000066', text: '#000' }
-    },
-    {
-      id: 'n9', laneId: 'l2', label: 'ATP allocation', level: 5.5, order: 0.5,
-      shape: 'decision', workType: 'neutral', w: 140, h: 70,
-      style: { fill: '#ffffcc', border: '#cccc00', text: '#000' }
-    },
-    {
-      id: 'n10', laneId: 'l2', label: 'Create SalesOrder', level: 7.5, order: 0.5,
-      shape: 'rect', workType: 'neutral', w: 130, h: 55,
-      style: { fill: '#cce5ff', border: '#000066', text: '#000' }
-    },
-    {
-      id: 'n11', laneId: 'l2', label: 'SalesOrder', level: 8.5, order: 1.2,
-      shape: 'document', workType: 'neutral', w: 110, h: 45,
-      style: { fill: '#e6e6e6', border: '#666666', text: '#000' }
-    },
-    {
-      id: 'n18', laneId: 'l2', label: 'Normal order\ncreation finish', level: 12, order: 0.5,
-      shape: 'rounded-rect', workType: 'neutral', w: 130, h: 55,
-      style: { fill: '#ccffcc', border: '#006600', text: '#000' }
-    },
+    { id: 'n1', laneId: 'l2', label: 'Normal order\ncreation start', level: 0, order: -0.5, type: 'start' },
+    { id: 'n4', laneId: 'l2', label: 'Get the PO of the\ncustomer', level: 1, order: 0.5, type: 'process-red' },
+    { id: 'n5', laneId: 'l2', label: '거래선PO입력\n(KO)', level: 2.5, order: 0.5, type: 'process-blue' },
+    { id: 'n6', laneId: 'l2', label: 'SalesPrice', level: 3.5, order: -0.5, type: 'document' },
+    { id: 'n7', laneId: 'l2', label: 'OI Master', level: 4.5, order: -0.5, type: 'document' },
+    { id: 'n8', laneId: 'l2', label: 'Request Proposal', level: 4, order: 0.5, type: 'process-blue' },
+    { id: 'n9', laneId: 'l2', label: 'ATP allocation', level: 5.5, order: 0.5, type: 'decision' },
+    { id: 'n10', laneId: 'l2', label: 'Create SalesOrder', level: 7.5, order: 0.5, type: 'process-blue' },
+    { id: 'n11', laneId: 'l2', label: 'SalesOrder', level: 8.5, order: 1.2, type: 'document' },
+    { id: 'n18', laneId: 'l2', label: 'Normal order\ncreation finish', level: 12, order: 0.5, type: 'end' },
 
     // Lane 3
-    {
-      id: 'n12', laneId: 'l3', label: '5.4.3.20.Move Allocat\nion', level: 5.5, order: 0,
-      shape: 'hexagon', workType: 'neutral', w: 160, h: 75,
-      style: { fill: '#ccffcc', border: '#006600', text: '#000' }
-    },
-    {
-      id: 'n13', laneId: 'l3', label: '5.4.8.30.Order\ndelivery\nconsent.Substrate', level: 6.5, order: 0,
-      shape: 'hexagon', workType: 'neutral', w: 160, h: 75,
-      style: { fill: '#ccffcc', border: '#006600', text: '#000' }
-    },
-    {
-      id: 'n14', laneId: 'l3', label: '5.4.2.81. Create PO\nbetween\nplant.Substrate', level: 7.5, order: 0,
-      shape: 'hexagon', workType: 'neutral', w: 160, h: 75,
-      style: { fill: '#ccffcc', border: '#006600', text: '#000' }
-    },
-    {
-      id: 'n15', laneId: 'l3', label: '5.4.2.90.OEM order\nchange.Substrate', level: 8.5, order: 0,
-      shape: 'hexagon', workType: 'neutral', w: 160, h: 75,
-      style: { fill: '#ccffcc', border: '#006600', text: '#000' }
-    },
-    {
-      id: 'n16', laneId: 'l3', label: '8.2.1.22. Product\nprogression\nstop.Substrate', level: 9.5, order: 0,
-      shape: 'hexagon', workType: 'neutral', w: 160, h: 75,
-      style: { fill: '#ccffcc', border: '#006600', text: '#000' }
-    },
-    {
-      id: 'n17', laneId: 'l3', label: '8.2.3.20.MASSLAM\nMngt. Substrate', level: 10.5, order: 0,
-      shape: 'hexagon', workType: 'neutral', w: 160, h: 75,
-      style: { fill: '#ccffcc', border: '#006600', text: '#000' }
-    },
+    { id: 'n12', laneId: 'l3', label: '5.4.3.20.Move Allocat\nion', level: 5.5, order: 0, type: 'substrate' },
+    { id: 'n13', laneId: 'l3', label: '5.4.8.30.Order\ndelivery\nconsent.Substrate', level: 6.5, order: 0, type: 'substrate' },
+    { id: 'n14', laneId: 'l3', label: '5.4.2.81. Create PO\nbetween\nplant.Substrate', level: 7.5, order: 0, type: 'substrate' },
+    { id: 'n15', laneId: 'l3', label: '5.4.2.90.OEM order\nchange.Substrate', level: 8.5, order: 0, type: 'substrate' },
+    { id: 'n16', laneId: 'l3', label: '8.2.1.22. Product\nprogression\nstop.Substrate', level: 9.5, order: 0, type: 'substrate' },
+    { id: 'n17', laneId: 'l3', label: '8.2.3.20.MASSLAM\nMngt. Substrate', level: 10.5, order: 0, type: 'substrate' },
   ],
   edges: [
     { id: 'e1', from: 'n1', to: 'n4', fromAnchor: 'right', toAnchor: 'top' },
