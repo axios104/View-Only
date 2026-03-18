@@ -1,5 +1,5 @@
 import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from 'react'
-import type { Anchor, Person, RoadmapDiagram, WorkType, NodeShape } from '../types/roadmap'
+import type { Anchor, Person, RoadmapDiagram, WorkType, NodeShape, Lane } from '../types/roadmap'
 import { setTranslate, setScale } from '../store/canvasSlice'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
 import { Avatar } from './Avatar'
@@ -10,6 +10,7 @@ type ProcessCanvasProps = {
   className?: string
   onPersonClick?: (person: Person) => void
   onNodeClick?: (node: PositionedRoadmapNode) => void
+  onLaneClick?: (lane: Lane) => void
 }
 
 export type ProcessCanvasApi = {
@@ -86,7 +87,7 @@ function NodeBg({ shape, fill, border }: { shape: NodeShape, fill: string, borde
 }
 
 function Node({ n }: { n: PositionedRoadmapNode }) {
-  const base = 'absolute grid select-none place-items-center text-center text-[11.5px] leading-tight transition-transform duration-150 hover:brightness-105 hover:scale-105 z-10'
+  const base = 'absolute grid select-none place-items-center text-center text-[11.5px] leading-tight transition-transform duration-150 hover:brightness-105 hover:scale-105 z-10 cursor-pointer'
   const fill = n.style?.fill ?? workTypeFill[n.workType]
   const text = n.style?.text ?? workTypeText[n.workType]
   const border = n.style?.border ?? 'rgba(0,0,0,0.1)'
@@ -119,7 +120,7 @@ function Node({ n }: { n: PositionedRoadmapNode }) {
 }
 
 export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(function ProcessCanvas(
-  { diagram, className, onPersonClick, onNodeClick },
+  { diagram, className, onPersonClick, onNodeClick, onLaneClick },
   ref,
 ) {
   const dispatch = useAppDispatch()
@@ -128,13 +129,19 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
   
   const [dragging, setDragging] = useState(false)
   const lastPointerRef = useRef<{ x: number; y: number } | null>(null)
-  const clickCandidateRef = useRef<{ personId: string | null; nodeId: string | null; x: number; y: number; moved: boolean }>({ personId: null, nodeId: null, x: 0, y: 0, moved: false })
+  const clickCandidateRef = useRef<{ personId: string | null; nodeId: string | null; laneId: string | null; x: number; y: number; moved: boolean }>({ personId: null, nodeId: null, laneId: null, x: 0, y: 0, moved: false })
 
   const peopleById = useMemo(() => {
     const m = new Map<string, Person>()
     diagram.people.forEach((p) => m.set(p.id, p))
     return m
   }, [diagram.people])
+  
+  const lanesById = useMemo(() => {
+    const m = new Map<string, Lane>()
+    diagram.lanes.forEach((l) => m.set(l.id, l))
+    return m
+  }, [diagram.lanes])
 
   const laneWidth = diagram.lanes.length > 0 ? diagram.canvas.width / diagram.lanes.length : diagram.canvas.width
   const headerH = 64
@@ -144,7 +151,6 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
     return layoutRoadmapNodes(diagram, { laneWidth, headerH, rowGap })
   }, [diagram, laneWidth])
 
-  // Figure out the max grid extent so empty boxes enclose out-of-bound nodes properly.
   const maxLevel = positionedNodes.reduce((acc, n) => Math.max(acc, n.level), 0)
   const contentHeight = headerH + (maxLevel + 1) * rowGap
   const docHeight = Math.max(diagram.canvas.height, contentHeight + 50)
@@ -219,6 +225,7 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
         className ?? ''].join(' ')}
       style={{ touchAction: 'none' }}
       onWheel={(e) => {
+        // Allow zoom on scroll wheel + Ctrl, or default to standard pan
         if (e.ctrlKey || e.metaKey) {
           e.preventDefault()
           zoomAround(scale * (e.deltaY > 0 ? 0.92 : 1.08), e.clientX, e.clientY)
@@ -243,6 +250,7 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
         clickCandidateRef.current = {
           personId: el?.closest('[data-person-id]')?.getAttribute('data-person-id') ?? null,
           nodeId: el?.closest('[data-node-id]')?.getAttribute('data-node-id') ?? null,
+          laneId: el?.closest('[data-lane-id]')?.getAttribute('data-lane-id') ?? null,
           x: e.clientX, y: e.clientY, moved: false
         }
 
@@ -278,9 +286,10 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
           try { e.currentTarget.releasePointerCapture(e.pointerId) } catch {}
 
           if (ev.type === 'pointerup' && !clickCandidateRef.current.moved) {
-            const { personId, nodeId } = clickCandidateRef.current
+            const { personId, nodeId, laneId } = clickCandidateRef.current
             if (nodeId) onNodeClick?.(nodesById.get(nodeId)!)
             else if (personId) onPersonClick?.(peopleById.get(personId)!)
+            else if (laneId) onLaneClick?.(lanesById.get(laneId)!)
           }
         }
 
@@ -288,25 +297,17 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
         window.addEventListener('pointerup', onUp)
       }}
     >
-      {/* Bold Isometric dots background */}
-      <div className="absolute inset-0 pointer-events-none opacity-40"
+      {/* Restored previous background & scaled dynamically with zooming */}
+      <div className="absolute inset-0 pointer-events-none"
         style={{
-          backgroundImage: `
-            radial-gradient(circle at center, var(--color-text-secondary) 2px, transparent 2.5px),
-            radial-gradient(circle at center, var(--color-text-secondary) 2px, transparent 2.5px)
-          `,
-          backgroundSize: '40px 40px',
-          backgroundPosition: `${tx}px ${ty}px, ${tx + 20}px ${ty + 20}px`,
+          backgroundImage: 'radial-gradient(circle, color-mix(in srgb, var(--color-border) 95%, transparent) 1px, transparent 1px)',
+          backgroundSize: `${20 * scale}px ${20 * scale}px`,
+          backgroundPosition: `${tx}px ${ty}px`,
         }}
       />
       <div className="absolute left-0 top-0"
         style={{ transform: `translate(${tx}px, ${ty}px) scale(${scale})`, transformOrigin: '0 0', width: diagram.canvas.width, height: docHeight }}
       >
-        {/* Horizontal bold grids */}
-        {Array.from({ length: maxLevel + 2 }).map((_, r) => (
-          <div key={`h-grid-${r}`} className="pointer-events-none absolute left-0 h-[2.5px] bg-border z-0 shadow-sm" style={{ top: headerH + r * rowGap, width: diagram.canvas.width }} />
-        ))}
-        
         {/* Vertical bold grids */}
         {diagram.lanes.map((lane, idx) => (
           <div key={`v-grid-${lane.id}`} className="pointer-events-none absolute top-0 w-[2.5px] bg-border z-0 shadow-sm" style={{ left: idx * laneWidth, height: contentHeight }} />
@@ -318,8 +319,9 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
           {diagram.lanes.map((lane, idx) => {
             const person = lane.personId ? peopleById.get(lane.personId) : undefined
             return (
-              <div key={lane.id} data-person-id={person?.id ?? undefined}
-                className="absolute top-0 flex items-center justify-between border-b-4 border-border bg-card px-4 py-3 text-left shadow-md"
+              <div key={lane.id} data-person-id={person?.id ?? undefined} data-lane-id={lane.id}
+                onClick={() => !handMode && onLaneClick?.(lane)}
+                className="absolute top-0 flex items-center justify-between border-b-4 border-border bg-card px-4 py-3 text-left shadow-md cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
                 style={{ left: idx * laneWidth, width: laneWidth, height: headerH, borderRight: idx === diagram.lanes.length - 1 ? '2.5px solid var(--color-border)' : '2.5px solid var(--color-border)' }}
               >
                 <div>
@@ -352,7 +354,7 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
         </svg>
         {positionedNodes.map((n) => <Node key={n.id} n={n} />)}
       </div>
-      <MiniMap diagram={diagram} viewportRef={viewportRef} scale={scale} tx={tx} ty={ty} onJump={(next) => dispatch(setTranslate(next))} docHeight={docHeight} />
+      <MiniMap diagram={diagram} docHeight={docHeight} viewportRef={viewportRef} scale={scale} tx={tx} ty={ty} onJump={(next) => dispatch(setTranslate(next))} />
     </div>
   )
 })
