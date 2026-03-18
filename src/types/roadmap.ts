@@ -15,25 +15,21 @@ export type Person = {
   team: string
 }
 
-export type NodeShape = 'rect' | 'decision' | 'arrow-right'
+export type NodeShape = 'rect' | 'decision' | 'arrow-right' | 'hexagon' | 'document' | 'rounded-rect'
 export type Anchor = 'left' | 'right' | 'top' | 'bottom' | 'center'
 
 export type RoadmapNode = {
   id: string
   laneId: string
-  /** Horizontal position within lane (column). */
-  level: number
-  /** Vertical position within lane (row). */
+  /** Horizontal position modifier within the same level (0 is center, -0.5 is left, etc.). */
   order: number
+  /** Vertical grid placement (row). */
+  level: number
   label: string
   shape: NodeShape
   workType: WorkType
   w: number
   h: number
-  /**
-   * Optional styling from API.
-   * If omitted, the UI falls back to token-based colors derived from workType.
-   */
   style?: {
     fill?: string
     text?: string
@@ -48,10 +44,6 @@ export type RoadmapEdge = {
   to: string
   fromAnchor?: Anchor
   toAnchor?: Anchor
-  /**
-   * Optional label rendered near the connector midpoint.
-   * Can be null/undefined if there is no text between steps.
-   */
   label?: string | null
 }
 
@@ -65,4 +57,3 @@ export type RoadmapDiagram = {
     height: number
   }
 }
-

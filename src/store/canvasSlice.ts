@@ -5,6 +5,7 @@ export type CanvasState = {
   tx: number
   ty: number
   handMode: boolean
+  magnifierMode: boolean
 }
 
 const initialState: CanvasState = {
@@ -12,6 +13,7 @@ const initialState: CanvasState = {
   tx: 0,
   ty: 0,
   handMode: true,
+  magnifierMode: false,
 }
 
 const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n))
@@ -21,7 +23,7 @@ const canvasSlice = createSlice({
   initialState,
   reducers: {
     setScale(state, action: PayloadAction<number>) {
-      state.scale = clamp(action.payload, 0.25, 2.5)
+      state.scale = clamp(action.payload, 0.25, 4.0)
     },
     setTranslate(state, action: PayloadAction<{ tx: number; ty: number }>) {
       state.tx = action.payload.tx
@@ -29,6 +31,11 @@ const canvasSlice = createSlice({
     },
     setHandMode(state, action: PayloadAction<boolean>) {
       state.handMode = action.payload
+      if (action.payload) state.magnifierMode = false
+    },
+    setMagnifierMode(state, action: PayloadAction<boolean>) {
+      state.magnifierMode = action.payload
+      if (action.payload) state.handMode = false
     },
     resetView(state) {
       state.scale = 1
@@ -38,6 +45,5 @@ const canvasSlice = createSlice({
   },
 })
 
-export const { setScale, setTranslate, setHandMode, resetView } = canvasSlice.actions
+export const { setScale, setTranslate, setHandMode, setMagnifierMode, resetView } = canvasSlice.actions
 export const canvasReducer = canvasSlice.reducer
-

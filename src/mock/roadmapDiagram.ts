@@ -1,362 +1,129 @@
 import type { RoadmapDiagram } from '../types/roadmap'
 
-// Rich mock data set that exercises:
-// - All work types (sap, legacy, manual, neutral)
-// - Multiple lanes and people
-// - Rectangular and decision shapes
-// - Cross-lane dependencies and mixed anchors
-// - Long, multi-line labels and varying node sizes
 export const mockRoadmapDiagram: RoadmapDiagram = {
-  canvas: { width: 2200, height: 1200 },
+  canvas: { width: 1400, height: 1600 },
   people: [
-    {
-      id: 'p1',
-      name: 'Abhinav',
-      role: 'Global Process Owner – Order to Cash',
-      email: 'abhinav.gupta@example.com',
-      location: 'Bengaluru, IN',
-      team: 'Enterprise Process Excellence',
-    },
-    {
-      id: 'p2',
-      name: 'Pathanjali',
-      role: 'Solution Architect – SAP SD',
-      email: 'pathanjali.kr@example.com',
-      location: 'Singapore, SG',
-      team: 'Digital Architecture',
-    },
-    {
-      id: 'p3',
-      name: 'Kubra',
-      role: 'Business Analyst – Commercial Operations',
-      email: 'kubra.ali@example.com',
-      location: 'Seoul, KR',
-      team: 'Business Process',
-    },
-    {
-      id: 'p4',
-      name: 'Diego',
-      role: 'Regional Process Lead – EMEA',
-      email: 'diego.martinez@example.com',
-      location: 'Madrid, ES',
-      team: 'Regional Operations',
-    },
-    {
-      id: 'p5',
-      name: 'Sofia',
-      role: 'Reporting & Analytics Lead',
-      email: 'sofia.lee@example.com',
-      location: 'New York, US',
-      team: 'Data & Insights',
-    },
+    { id: 'p1', name: 'Sales Person', role: 'Sales', email: 'sales@example.com', location: 'Seoul', team: 'Sales' }
   ],
   lanes: [
-    { id: 'l1', title: 'Carries out & Supports by', personId: 'p1' },
-    { id: 'l2', title: 'Carries out & Supports by', personId: 'p2' },
-    { id: 'l3', title: 'Carries out & Supports by', personId: 'p3' },
-    { id: 'l4', title: 'Approves / Governs by', personId: 'p4' },
-    { id: 'l5', title: 'Monitors & Reports by', personId: 'p5' },
+    { id: 'l1', title: 'Organization...', personId: null },
+    { id: 'l2', title: 'Carries out & Supports', personId: 'p1' },
+    { id: 'l3', title: 'Carries out & Supports', personId: null },
   ],
   nodes: [
-    // Level 0 – Opportunity & quotation
+    // Lane 1
     {
-      id: 'n1',
-      laneId: 'l1',
-      label: 'Capture opportunity\n(from CRM or partner portal)',
-      level: 0,
-      order: 0,
-      shape: 'rect',
-      workType: 'manual',
-      w: 220,
-      h: 64,
-      style: {
-        connector: 'var(--color-bg-manual-function)',
-      },
+      id: 'n2', laneId: 'l1', label: '5.1.1.81. Customer\nGroup\nManagement.Substrate', level: 2, order: 0,
+      shape: 'hexagon', workType: 'neutral', w: 160, h: 75,
+      style: { fill: '#ccffcc', border: '#006600', text: '#000' }
     },
     {
-      id: 'n2',
-      laneId: 'l2',
-      label: 'Create quotation in SAP\nwith configured pricing & terms',
-      level: 1,
-      order: 0,
-      shape: 'rect',
-      workType: 'sap',
-      w: 260,
-      h: 72,
-      style: {
-        connector: 'var(--color-bg-sap-function)',
-      },
-    },
-    {
-      id: 'n3',
-      laneId: 'l3',
-      label: 'Validate commercial\nconditions with business\nowner (discounts, bundles)',
-      level: 2,
-      order: 0,
-      shape: 'rect',
-      workType: 'manual',
-      w: 260,
-      h: 88,
-      style: {
-        connector: 'var(--color-bg-manual-function)',
-      },
+      id: 'n3', laneId: 'l1', label: '5.4.1.11. Normal\nselling price\nregistration.Substrate', level: 3, order: 0,
+      shape: 'hexagon', workType: 'neutral', w: 160, h: 75,
+      style: { fill: '#ccffcc', border: '#006600', text: '#000' }
     },
 
-    // Decision – approval needed?
+    // Lane 2
     {
-      id: 'n4',
-      laneId: 'l4',
-      label: 'Is approval\nrequired?',
-      level: 3,
-      order: 1,
-      shape: 'decision',
-      workType: 'neutral',
-      w: 180,
-      h: 96,
-      style: {
-        connector: 'color-mix(in srgb, var(--color-bg-neutral-node) 55%, var(--color-primary) 45%)',
-      },
+      id: 'n1', laneId: 'l2', label: 'Normal order\ncreation start', level: 0, order: -0.5,
+      shape: 'rounded-rect', workType: 'neutral', w: 130, h: 55,
+      style: { fill: '#ffcccc', border: '#cc0000', text: '#000' }
+    },
+    {
+      id: 'n4', laneId: 'l2', label: 'Get the PO of the\ncustomer', level: 1, order: 0.5,
+      shape: 'rect', workType: 'neutral', w: 130, h: 55,
+      style: { fill: '#ffcccc', border: '#cc0000', text: '#000' }
+    },
+    {
+      id: 'n5', laneId: 'l2', label: '거래선PO입력\n(KO)', level: 2.5, order: 0.5,
+      shape: 'rect', workType: 'neutral', w: 130, h: 55,
+      style: { fill: '#cce5ff', border: '#000066', text: '#000' }
+    },
+    {
+      id: 'n6', laneId: 'l2', label: 'SalesPrice', level: 3.5, order: -0.5,
+      shape: 'document', workType: 'neutral', w: 110, h: 45,
+      style: { fill: '#e6e6e6', border: '#666666', text: '#000' }
+    },
+    {
+      id: 'n7', laneId: 'l2', label: 'OI Master', level: 4.5, order: -0.5,
+      shape: 'document', workType: 'neutral', w: 110, h: 45,
+      style: { fill: '#e6e6e6', border: '#666666', text: '#000' }
+    },
+    {
+      id: 'n8', laneId: 'l2', label: 'Request Proposal', level: 4, order: 0.5,
+      shape: 'rect', workType: 'neutral', w: 130, h: 55,
+      style: { fill: '#cce5ff', border: '#000066', text: '#000' }
+    },
+    {
+      id: 'n9', laneId: 'l2', label: 'ATP allocation', level: 5.5, order: 0.5,
+      shape: 'decision', workType: 'neutral', w: 140, h: 70,
+      style: { fill: '#ffffcc', border: '#cccc00', text: '#000' }
+    },
+    {
+      id: 'n10', laneId: 'l2', label: 'Create SalesOrder', level: 7.5, order: 0.5,
+      shape: 'rect', workType: 'neutral', w: 130, h: 55,
+      style: { fill: '#cce5ff', border: '#000066', text: '#000' }
+    },
+    {
+      id: 'n11', laneId: 'l2', label: 'SalesOrder', level: 8.5, order: 1.2,
+      shape: 'document', workType: 'neutral', w: 110, h: 45,
+      style: { fill: '#e6e6e6', border: '#666666', text: '#000' }
+    },
+    {
+      id: 'n18', laneId: 'l2', label: 'Normal order\ncreation finish', level: 12, order: 0.5,
+      shape: 'rounded-rect', workType: 'neutral', w: 130, h: 55,
+      style: { fill: '#ccffcc', border: '#006600', text: '#000' }
     },
 
-    // Approval branch
+    // Lane 3
     {
-      id: 'n5',
-      laneId: 'l4',
-      label: 'Review and approve\nhigh-value quotation',
-      level: 4,
-      order: 0,
-      shape: 'rect',
-      workType: 'manual',
-      w: 220,
-      h: 64,
-      style: {
-        connector: 'var(--color-bg-manual-function)',
-      },
+      id: 'n12', laneId: 'l3', label: '5.4.3.20.Move Allocat\nion', level: 5.5, order: 0,
+      shape: 'hexagon', workType: 'neutral', w: 160, h: 75,
+      style: { fill: '#ccffcc', border: '#006600', text: '#000' }
     },
     {
-      id: 'n6',
-      laneId: 'l2',
-      label: 'Apply approved\nconditions in SAP',
-      level: 5,
-      order: 0,
-      shape: 'rect',
-      workType: 'sap',
-      w: 210,
-      h: 56,
-      style: {
-        connector: 'var(--color-bg-sap-function)',
-      },
-    },
-
-    // Rejection branch
-    {
-      id: 'n7',
-      laneId: 'l3',
-      label: 'Communicate rejection\nand capture reason code',
-      level: 4,
-      order: 2,
-      shape: 'rect',
-      workType: 'manual',
-      w: 230,
-      h: 64,
-      style: {
-        connector: 'var(--color-bg-manual-function)',
-      },
-    },
-
-    // Order creation
-    {
-      id: 'n8',
-      laneId: 'l2',
-      label: 'Convert quotation to\nsales order in SAP',
-      level: 6,
-      order: 1,
-      shape: 'rect',
-      workType: 'sap',
-      w: 220,
-      h: 56,
-      style: {
-        connector: 'var(--color-bg-sap-function)',
-      },
+      id: 'n13', laneId: 'l3', label: '5.4.8.30.Order\ndelivery\nconsent.Substrate', level: 6.5, order: 0,
+      shape: 'hexagon', workType: 'neutral', w: 160, h: 75,
+      style: { fill: '#ccffcc', border: '#006600', text: '#000' }
     },
     {
-      id: 'n9',
-      laneId: 'l1',
-      label: 'Confirm order\nwith customer',
-      level: 7,
-      order: 1,
-      shape: 'rect',
-      workType: 'manual',
-      w: 190,
-      h: 56,
-      style: {
-        connector: 'var(--color-bg-manual-function)',
-      },
-    },
-
-    // Delivery & billing
-    {
-      id: 'n10',
-      laneId: 'l2',
-      label: 'Create delivery\nand post goods issue',
-      level: 8,
-      order: 1,
-      shape: 'rect',
-      workType: 'sap',
-      w: 220,
-      h: 64,
-      style: {
-        connector: 'var(--color-bg-sap-function)',
-      },
+      id: 'n14', laneId: 'l3', label: '5.4.2.81. Create PO\nbetween\nplant.Substrate', level: 7.5, order: 0,
+      shape: 'hexagon', workType: 'neutral', w: 160, h: 75,
+      style: { fill: '#ccffcc', border: '#006600', text: '#000' }
     },
     {
-      id: 'n11',
-      laneId: 'l2',
-      label: 'Create billing\ndocument in SAP',
-      level: 9,
-      order: 1,
-      shape: 'rect',
-      workType: 'sap',
-      w: 210,
-      h: 56,
-      style: {
-        connector: 'var(--color-bg-sap-function)',
-      },
+      id: 'n15', laneId: 'l3', label: '5.4.2.90.OEM order\nchange.Substrate', level: 8.5, order: 0,
+      shape: 'hexagon', workType: 'neutral', w: 160, h: 75,
+      style: { fill: '#ccffcc', border: '#006600', text: '#000' }
     },
     {
-      id: 'n12',
-      laneId: 'l5',
-      label: 'Post billing to\nfinance and update\nreporting cubes',
-      level: 10,
-      order: 1,
-      shape: 'rect',
-      workType: 'legacy',
-      w: 260,
-      h: 80,
-      style: {
-        connector: 'var(--color-bg-legacy-function)',
-      },
-    },
-
-    // Monitoring & analytics
-    {
-      id: 'n13',
-      laneId: 'l5',
-      label: 'Monitor order-to-cash\ncycle time and\naging KPIs',
-      level: 11,
-      order: 2,
-      shape: 'arrow-right',
-      workType: 'neutral',
-      w: 280,
-      h: 72,
-      style: {
-        connector: 'color-mix(in srgb, var(--color-bg-neutral-node) 55%, var(--color-primary) 45%)',
-      },
+      id: 'n16', laneId: 'l3', label: '8.2.1.22. Product\nprogression\nstop.Substrate', level: 9.5, order: 0,
+      shape: 'hexagon', workType: 'neutral', w: 160, h: 75,
+      style: { fill: '#ccffcc', border: '#006600', text: '#000' }
     },
     {
-      id: 'n14',
-      laneId: 'l5',
-      label: 'Trigger continuous\nimprovement backlog item\nfor bottlenecks',
-      level: 12,
-      order: 2,
-      shape: 'arrow-right',
-      workType: 'manual',
-      w: 280,
-      h: 72,
-      style: {
-        connector: 'var(--color-bg-manual-function)',
-      },
-    },
-
-    // Example neutral node with default styling only (kept rectangular)
-    {
-      id: 'n15',
-      laneId: 'l1',
-      label: 'Periodic health check\nand design authority\nreview (quarterly)',
-      level: 13,
-      order: 3,
-      shape: 'rect',
-      workType: 'neutral',
-      w: 260,
-      h: 96,
+      id: 'n17', laneId: 'l3', label: '8.2.3.20.MASSLAM\nMngt. Substrate', level: 10.5, order: 0,
+      shape: 'hexagon', workType: 'neutral', w: 160, h: 75,
+      style: { fill: '#ccffcc', border: '#006600', text: '#000' }
     },
   ],
   edges: [
-    // Core flow
-    {
-      id: 'e1',
-      from: 'n1',
-      to: 'n2',
-      fromAnchor: 'right',
-      toAnchor: 'left',
-      label: 'Opportunity qualified',
-    },
-    {
-      id: 'e2',
-      from: 'n2',
-      to: 'n3',
-      fromAnchor: 'right',
-      toAnchor: 'left',
-      label: null,
-    },
-    {
-      id: 'e3',
-      from: 'n3',
-      to: 'n4',
-      fromAnchor: 'right',
-      toAnchor: 'left',
-      label: 'Approval check required',
-    },
-
-    // Decision branches
-    {
-      id: 'e4',
-      from: 'n4',
-      to: 'n5',
-      fromAnchor: 'bottom',
-      toAnchor: 'top',
-      label: 'If Yes',
-    },
-    {
-      id: 'e5',
-      from: 'n4',
-      to: 'n7',
-      fromAnchor: 'right',
-      toAnchor: 'left',
-      label: 'If No / Reject',
-    },
-
-    // Approval path back into SAP
-    {
-      id: 'e6',
-      from: 'n5',
-      to: 'n6',
-      fromAnchor: 'bottom',
-      toAnchor: 'top',
-      label: 'Approved',
-    },
-    { id: 'e7', from: 'n6', to: 'n8', fromAnchor: 'bottom', toAnchor: 'top' },
-
-    // Rejection rejoins monitoring
-    { id: 'e8', from: 'n7', to: 'n13', fromAnchor: 'bottom', toAnchor: 'left', label: 'Feed KPI' },
-
-    // Downstream fulfillment
-    {
-      id: 'e9',
-      from: 'n8',
-      to: 'n9',
-      fromAnchor: 'bottom',
-      toAnchor: 'top',
-      label: 'Order created',
-    },
-    { id: 'e10', from: 'n9', to: 'n10', fromAnchor: 'right', toAnchor: 'left' },
-    { id: 'e11', from: 'n10', to: 'n11', fromAnchor: 'bottom', toAnchor: 'top' },
-    { id: 'e12', from: 'n11', to: 'n12', fromAnchor: 'right', toAnchor: 'left' },
-
-    // Monitoring and improvement loop
-    { id: 'e13', from: 'n12', to: 'n13', fromAnchor: 'bottom', toAnchor: 'top', label: null },
-    { id: 'e14', from: 'n13', to: 'n14', fromAnchor: 'bottom', toAnchor: 'top', label: 'Insights' },
-    { id: 'e15', from: 'n14', to: 'n15', fromAnchor: 'bottom', toAnchor: 'top', label: null },
+    { id: 'e1', from: 'n1', to: 'n4', fromAnchor: 'right', toAnchor: 'top' },
+    { id: 'e2', from: 'n4', to: 'n5', fromAnchor: 'bottom', toAnchor: 'top' },
+    { id: 'e3', from: 'n2', to: 'n5', fromAnchor: 'right', toAnchor: 'left' },
+    { id: 'e4', from: 'n3', to: 'n5', fromAnchor: 'right', toAnchor: 'left' },
+    { id: 'e5', from: 'n5', to: 'n6', fromAnchor: 'bottom', toAnchor: 'top' },
+    { id: 'e6', from: 'n5', to: 'n8', fromAnchor: 'bottom', toAnchor: 'top' },
+    { id: 'e7', from: 'n7', to: 'n8', fromAnchor: 'right', toAnchor: 'left' },
+    { id: 'e8', from: 'n8', to: 'n9', fromAnchor: 'bottom', toAnchor: 'top' },
+    { id: 'e9', from: 'n9', to: 'n12', fromAnchor: 'right', toAnchor: 'left', label: 'N' },
+    { id: 'e10', from: 'n9', to: 'n10', fromAnchor: 'bottom', toAnchor: 'top', label: 'Y' },
+    { id: 'e11', from: 'n10', to: 'n11', fromAnchor: 'right', toAnchor: 'left' },
+    { id: 'e12', from: 'n10', to: 'n13', fromAnchor: 'right', toAnchor: 'left' },
+    { id: 'e13', from: 'n10', to: 'n14', fromAnchor: 'right', toAnchor: 'left' },
+    { id: 'e14', from: 'n10', to: 'n15', fromAnchor: 'right', toAnchor: 'left' },
+    { id: 'e15', from: 'n10', to: 'n16', fromAnchor: 'right', toAnchor: 'left' },
+    { id: 'e16', from: 'n10', to: 'n17', fromAnchor: 'right', toAnchor: 'left' },
+    { id: 'e17', from: 'n10', to: 'n18', fromAnchor: 'bottom', toAnchor: 'top' },
   ],
 }
-
