@@ -1,46 +1,111 @@
-export type Lane = {
-  id: string
-  title: string
-  personId: string | null
+// src/types/roadmap.ts
+export type NodeType = 'process' | 'decision' | 'terminator' | 'document' | 'data';
+
+// Connector anchor points used by the canvas renderer.
+export type Anchor = 'left' | 'right' | 'top' | 'bottom' | 'center';
+
+// Visual footprint shapes used by the canvas renderer.
+export type NodeShape =
+  | 'decision'
+  | 'hexagon'
+  | 'document'
+  | 'rounded-rect'
+  | 'rect'
+  | 'arrow-right'
+  | 'substrate';
+
+export interface RawFlowchartRow {
+  "L1 ID"?: string;
+  "L1 Text"?: string;
+  "L2 ID"?: string;
+  "L2 Text"?: string;
+  "L3 ID"?: string;
+  "L3 Text"?: string;
+  "L4 ID"?: string;
+  "L4 Text"?: string;
+  "Serial ID"?: string;
+  "L5 Text": string;
+  "Level": number | string;
+  "Role": string;
+  "Type"?: string;
+  "From. Relationship"?: string;
+  "To. Relationship (Y)"?: string;
+  "To. Relationship (Y) Text"?: string;
+  "To. Relationship (N)"?: string;
+  "To. Relationship (N) Text"?: string;
+  "internal ID": string;
+  "Type Text": string;
+  "T-code"?: string;
+  "Description"?: string;
+  "Manual URL"?: string;
+  "Output"?: string;
+  "Create Date"?: string;
+  "Create Person"?: string;
+  "Change Date"?: string;
+  "Change Person"?: string;
 }
 
-export type Person = {
-  id: string
-  name: string
-  role: string
-  email: string
-  location: string
-  team: string
+export interface RoadmapLane {
+  id: string;
+  title: string;
+  order?: number;
+  // Canvas lane can optionally be assigned to a "person" for header rendering.
+  personId?: string;
 }
 
-export type NodeShape = 'rect' | 'decision' | 'arrow-right' | 'hexagon' | 'document' | 'rounded-rect'
-export type Anchor = 'left' | 'right' | 'top' | 'bottom' | 'center'
+// Backwards-compatible alias used across the UI components.
+export type Lane = RoadmapLane;
 
-export type RoadmapNode = {
-  id: string
-  laneId: string
-  order: number
-  level: number
-  label: string
-  type: string // e.g. 'start', 'end', 'process-blue', 'decision', etc.
+export interface Person {
+  id: string;
+  name: string;
+  role?: string;
+  email?: string;
+  team?: string;
+  location?: string;
 }
 
-export type RoadmapEdge = {
-  id: string
-  from: string
-  to: string
-  fromAnchor?: Anchor
-  toAnchor?: Anchor
-  label?: string | null
+export interface RoadmapCanvas {
+  width: number;
+  height: number;
 }
 
-export type RoadmapDiagram = {
-  lanes: Lane[]
-  people: Person[]
-  nodes: RoadmapNode[]
-  edges: RoadmapEdge[]
-  canvas: {
-    width: number
-    height: number
-  }
+export interface RoadmapNode {
+  id: string;
+  title: string;
+  type: NodeType;
+  laneId: string;
+  level: number;
+  // Optional ordering (used by layout when shifting nodes inside a row).
+  order?: number;
+  description?: string;
+  status?: 'completed' | 'in-progress' | 'planned';
+  assignees?: string[];
+  // Label shown inside the node (canvas uses `label`, not `title`).
+  label?: string;
+  // Added metadata to hold the extra flat-file columns
+  metadata?: Record<string, string | undefined>;
+}
+
+export interface RoadmapEdge {
+  id: string;
+  source: string;
+  target: string;
+  // Optional alternate fields supported by the canvas renderer.
+  from?: string;
+  to?: string;
+  fromAnchor?: Anchor;
+  toAnchor?: Anchor;
+  label?: string | null;
+  type?: 'solid' | 'dashed';
+}
+
+export interface RoadmapDiagram {
+  id: string;
+  title: string;
+  lanes: RoadmapLane[];
+  nodes: RoadmapNode[];
+  edges: RoadmapEdge[];
+  people?: Person[];
+  canvas?: RoadmapCanvas;
 }

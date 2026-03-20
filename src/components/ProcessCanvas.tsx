@@ -73,7 +73,8 @@ function NodeBg({ shape, fill, border }: { shape: NodeShape, fill: string, borde
 }
 
 function Node({ n }: { n: PositionedRoadmapNode }) {
-  const base = 'absolute grid select-none place-items-center text-center text-[10px] leading-tight transition-transform duration-150 hover:brightness-105 hover:scale-105 z-10 cursor-pointer'
+  // `overflow-hidden` prevents label text from bleeding into neighboring nodes.
+  const base = 'absolute grid select-none place-items-center text-center text-[10px] leading-tight overflow-hidden transition-transform duration-150 hover:brightness-105 hover:scale-[1.02] z-10 cursor-pointer'
 
   return (
     <div
@@ -91,10 +92,10 @@ function Node({ n }: { n: PositionedRoadmapNode }) {
       }}
     >
       <NodeBg shape={n.shape} fill={n.style.fill} border={n.style.border} />
-      <div className="relative z-10 flex h-full w-full items-center justify-center p-2 text-center">
+      <div className="relative z-10 flex h-full w-full items-center justify-center p-2 text-center overflow-hidden">
         <div>
-          {n.label.split('\n').map((line, idx) => (
-            <div key={idx}>{line}</div>
+          {(n.label ?? '').split('\n').map((line: string, idx: number) => (
+            <div key={idx} className="break-words">{line}</div>
           ))}
         </div>
       </div>
@@ -106,6 +107,16 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
   { diagram, className, onPersonClick, onNodeClick, onLaneClick },
   ref,
 ) {
+  // SAFETY NET: Provide fallbacks for missing arrays or canvas properties
+  const safeDiagram = useMemo(() => ({
+    ...diagram,
+    lanes: diagram?.lanes || [],
+    people: diagram?.people || [],
+    edges: diagram?.edges || [],
+    nodes: diagram?.nodes || [],
+    canvas: diagram?.canvas || { width: 2000, height: 1000 }
+  }), [diagram])
+
   const dispatch = useAppDispatch()
   const { scale, tx, ty, handMode, magnifierMode } = useAppSelector((s) => s.canvas)
   const viewportRef = useRef<HTMLDivElement | null>(null)
@@ -116,27 +127,27 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
 
   const peopleById = useMemo(() => {
     const m = new Map<string, Person>()
-    diagram.people.forEach((p) => m.set(p.id, p))
+    safeDiagram.people.forEach((p) => m.set(p.id, p))
     return m
-  }, [diagram.people])
+  }, [safeDiagram.people])
   
   const lanesById = useMemo(() => {
     const m = new Map<string, Lane>()
-    diagram.lanes.forEach((l) => m.set(l.id, l))
+    safeDiagram.lanes.forEach((l) => m.set(l.id, l))
     return m
-  }, [diagram.lanes])
+  }, [safeDiagram.lanes])
 
-  const laneWidth = diagram.lanes.length > 0 ? diagram.canvas.width / diagram.lanes.length : diagram.canvas.width
+  const laneWidth = safeDiagram.lanes.length > 0 ? safeDiagram.canvas.width / safeDiagram.lanes.length : safeDiagram.canvas.width
   const headerH = 64
   const rowGap = 90
 
   const positionedNodes = useMemo(() => {
-    return layoutRoadmapNodes(diagram, { laneWidth, headerH, rowGap })
-  }, [diagram, laneWidth])
+    return layoutRoadmapNodes(safeDiagram, { laneWidth, headerH, rowGap })
+  }, [safeDiagram, laneWidth])
 
   const maxLevel = positionedNodes.reduce((acc, n) => Math.max(acc, n.level), 0)
   const contentHeight = headerH + (maxLevel + 1) * rowGap
-  const docHeight = Math.max(diagram.canvas.height, contentHeight + 50)
+  const docHeight = Math.max(safeDiagram.canvas.height, contentHeight + 50)
 
   // Bounds Calculator: Prevent infinite scrolling
   const getClampedTranslate = (nextTx: number, nextTy: number, currentScale: number) => {
@@ -146,13 +157,11 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
     const rect = el.getBoundingClientRect()
     const padding = 50
     
-    const scaledW = diagram.canvas.width * currentScale
+    const scaledW = safeDiagram.canvas.width * currentScale
     let minTx, maxTx
     if (scaledW + padding * 2 < rect.width) {
-      // Content fits fully inside horizontally. Lock to center.
       minTx = maxTx = (rect.width - scaledW) / 2
     } else {
-      // Content larger than viewport. Normal padding bounds.
       minTx = rect.width - scaledW - padding
       maxTx = padding
     }
@@ -160,10 +169,8 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
     const scaledH = docHeight * currentScale
     let minTy, maxTy
     if (scaledH + padding * 2 < rect.height) {
-      // Content fits fully inside vertically. Lock to top edge with padding.
       minTy = maxTy = padding
     } else {
-      // Content larger than viewport. Normal padding bounds.
       minTy = rect.height - scaledH - padding
       maxTy = padding
     }
@@ -181,16 +188,17 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
   }, [positionedNodes])
 
   const edges = useMemo(() => {
-    return diagram.edges.map((e) => {
-      const fromN = nodesById.get(e.from)
-      const toN = nodesById.get(e.to)
+    return safeDiagram.edges.map((e) => {
+      const fromN = nodesById.get(e.from || e.source) // Handle adapter 'source/target' mapping safety
+      const toN = nodesById.get(e.to || e.target)
       if (!fromN || !toN) return null
       const from = anchorPoint(fromN, e.fromAnchor ?? 'right')
       const to = anchorPoint(toN, e.toAnchor ?? 'left')
-      const connector = fromN.style?.border ?? '#666'
+      // Use a consistent connector color so all lines match the primary flow color
+      const connector = 'var(--color-bg-sap-function)'
       return { id: e.id, from, to, connector, label: e.label ?? null }
     }).filter(Boolean) as any[]
-  }, [diagram.edges, nodesById])
+  }, [safeDiagram.edges, nodesById])
 
   const zoomAround = (nextScale: number, clientX: number, clientY: number) => {
     const el = viewportRef.current
@@ -213,16 +221,34 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
     const el = viewportRef.current
     if (!el) return
     const rect = el.getBoundingClientRect()
-    
-    // Fit only horizontally, accommodate our padding boundary math
-    const contentW = Math.max(1, diagram.canvas.width)
-    const targetScale = Math.max(0.25, Math.min(2.5, (rect.width - 100) / contentW))
-    
+
+    const contentW = Math.max(1, safeDiagram.canvas.width)
+    const contentH = Math.max(1, docHeight)
+    const padding = 50
+    const targetScaleW = (rect.width - padding * 2) / contentW
+    const targetScaleH = (rect.height - padding * 2) / contentH
+    const targetScale = Math.max(0.25, Math.min(2.5, Math.min(targetScaleW, targetScaleH)))
+
+    // Center the full diagram in the viewport.
     const nextTx = (rect.width - contentW * targetScale) / 2
-    const nextTy = 50
-    
+    const nextTy = (rect.height - contentH * targetScale) / 2
+
     dispatch(setScale(targetScale))
     dispatch(setTranslate(getClampedTranslate(nextTx, nextTy, targetScale)))
+  }
+
+  // Reset to an "extreme left" anchored view so the chart is not fit-to-screen.
+  // This makes the rest of the flow accessible via pan (drag / wheel).
+  const resetToLeft = () => {
+    const el = viewportRef.current
+    if (!el) return
+
+    const resetScale = 1
+    // Force tx to the leftmost allowed value and ty to the topmost allowed value.
+    const clamped = getClampedTranslate(-1e9, 1e9, resetScale)
+
+    dispatch(setScale(resetScale))
+    dispatch(setTranslate(clamped))
   }
 
   useImperativeHandle(ref, () => ({
@@ -234,9 +260,10 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
       const rect = viewportRef.current?.getBoundingClientRect()
       if (rect) zoomAround(scale * 0.85, rect.left + rect.width / 2, rect.top + rect.height / 2)
     },
-    reset: fit,
+    reset: resetToLeft,
     fit,
-  }), [dispatch, scale, docHeight])
+    // Note: expose resetToLeft behavior instead of fit-to-screen reset.
+  }), [dispatch, scale, docHeight, safeDiagram.canvas.width])
 
   return (
     <div
@@ -327,23 +354,21 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
         }}
       />
       <div className="absolute left-0 top-0"
-        style={{ transform: `translate(${tx}px, ${ty}px) scale(${scale})`, transformOrigin: '0 0', width: diagram.canvas.width, height: docHeight }}
+        style={{ transform: `translate(${tx}px, ${ty}px) scale(${scale})`, transformOrigin: '0 0', width: safeDiagram.canvas.width, height: docHeight }}
       >
-        {/* Vertical bold grids */}
-        {diagram.lanes.map((lane, idx) => (
+        {safeDiagram.lanes.map((lane, idx) => (
           <div key={`v-grid-${lane.id}`} className="pointer-events-none absolute top-0 w-[2.5px] bg-border z-0 shadow-sm" style={{ left: idx * laneWidth, height: contentHeight }} />
         ))}
-        {/* End vertical cap */}
-        <div className="pointer-events-none absolute top-0 w-[2.5px] bg-border z-0 shadow-sm" style={{ left: diagram.lanes.length * laneWidth, height: contentHeight }} />
+        <div className="pointer-events-none absolute top-0 w-[2.5px] bg-border z-0 shadow-sm" style={{ left: safeDiagram.lanes.length * laneWidth, height: contentHeight }} />
 
-        <div className="absolute left-0 top-0 z-20" style={{ width: diagram.canvas.width, height: headerH }}>
-          {diagram.lanes.map((lane, idx) => {
+        <div className="absolute left-0 top-0 z-20" style={{ width: safeDiagram.canvas.width, height: headerH }}>
+          {safeDiagram.lanes.map((lane, idx) => {
             const person = lane.personId ? peopleById.get(lane.personId) : undefined
             return (
               <div key={lane.id} data-person-id={person?.id ?? undefined} data-lane-id={lane.id}
                 onClick={() => !handMode && onLaneClick?.(lane)}
                 className="absolute top-0 flex items-center justify-between border-b-4 border-border bg-card px-4 py-3 text-left shadow-md cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-                style={{ left: idx * laneWidth, width: laneWidth, height: headerH, borderRight: idx === diagram.lanes.length - 1 ? '2.5px solid var(--color-border)' : '2.5px solid var(--color-border)' }}
+                style={{ left: idx * laneWidth, width: laneWidth, height: headerH, borderRight: idx === safeDiagram.lanes.length - 1 ? '2.5px solid var(--color-border)' : '2.5px solid var(--color-border)' }}
               >
                 <div>
                   <div className="text-xs font-bold text-text-primary/70">{lane.title}</div>
@@ -355,7 +380,7 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
           })}
         </div>
 
-        <svg className="pointer-events-none absolute inset-0 z-0" width={diagram.canvas.width} height={docHeight}>
+        <svg className="pointer-events-none absolute inset-0 z-0" width={safeDiagram.canvas.width} height={docHeight}>
           {edges.map((e) => {
             const midX = (e.from.x + e.to.x) / 2
             const midY = (e.from.y + e.to.y) / 2
@@ -376,13 +401,12 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
         {positionedNodes.map((n) => <Node key={n.id} n={n} />)}
       </div>
       <MiniMap 
-        diagram={diagram} 
+        diagram={safeDiagram} 
         docHeight={docHeight} 
         viewportRef={viewportRef} 
         scale={scale} 
         tx={tx} 
         ty={ty} 
-        // Force minimap to respect bounds when jumping
         onJump={(next) => dispatch(setTranslate(getClampedTranslate(next.tx, next.ty, scale)))}
         positionedNodes={positionedNodes}
         edges={edges}
@@ -394,7 +418,7 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
 type MiniMapProps = {
   diagram: RoadmapDiagram
   docHeight: number
-  viewportRef: React.RefObject<HTMLDivElement>
+  viewportRef: React.RefObject<HTMLDivElement | null>
   scale: number
   tx: number
   ty: number
@@ -406,7 +430,9 @@ type MiniMapProps = {
 function MiniMap({ diagram, docHeight, viewportRef, scale, tx, ty, onJump, positionedNodes, edges }: MiniMapProps) {
   const miniWidth = 220
   const miniHeight = 160
-  const s = Math.min(miniWidth / diagram.canvas.width, miniHeight / docHeight)
+  // Handle case where width could be 0 safely
+  const safeCanvasW = diagram.canvas?.width || 2000
+  const s = Math.min(miniWidth / safeCanvasW, miniHeight / docHeight)
   const [isDragging, setIsDragging] = useState(false)
 
   const updateJump = (e: React.PointerEvent) => {
@@ -421,16 +447,15 @@ function MiniMap({ diagram, docHeight, viewportRef, scale, tx, ty, onJump, posit
     <div className="pointer-events-auto absolute bottom-4 right-4 z-50 rounded-md border-2 border-border bg-card shadow-lg p-2 transition-transform hover:scale-105">
       <div className="text-xs font-semibold mb-2 text-text-primary/70">Mini Map</div>
       <div className="relative overflow-hidden rounded-sm border border-border/50 bg-[var(--color-bg-body)]"
-        style={{ width: diagram.canvas.width * s, height: docHeight * s, cursor: isDragging ? 'grabbing' : 'pointer' }}
+        style={{ width: safeCanvasW * s, height: docHeight * s, cursor: isDragging ? 'grabbing' : 'pointer' }}
         onPointerDown={(e) => { setIsDragging(true); e.currentTarget.setPointerCapture(e.pointerId); updateJump(e); }}
         onPointerMove={(e) => { if (isDragging) updateJump(e); }}
         onPointerUp={(e) => { setIsDragging(false); e.currentTarget.releasePointerCapture(e.pointerId); }}
       >
         <div className="absolute inset-0 pointer-events-none opacity-20 bg-primary/10" />
         
-        {/* Render a miniature structural version of the chart elements inside the minimap */}
         <div className="absolute inset-0 pointer-events-none">
-          <svg width="100%" height="100%" viewBox={`0 0 ${diagram.canvas.width} ${docHeight}`}>
+          <svg width="100%" height="100%" viewBox={`0 0 ${safeCanvasW} ${docHeight}`}>
             {edges.map((e) => {
               const midX = (e.from.x + e.to.x) / 2
               return (

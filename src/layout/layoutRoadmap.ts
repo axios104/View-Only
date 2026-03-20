@@ -28,6 +28,20 @@ const NODE_TYPE_MAP: Record<string, { shape: NodeShape; w: number; h: number; st
     shape: 'rounded-rect', w: 100, h: 45, 
     style: { fill: 'var(--color-bg-neutral-node)', border: 'var(--color-border)', text: 'var(--color-text-primary)', connector: 'var(--color-bg-neutral-node)' } 
   },
+  // --- ADDED MAPPINGS FOR FLAT ADAPTER ---
+  'terminator': { 
+    shape: 'rounded-rect', w: 100, h: 45, 
+    style: { fill: 'var(--color-bg-neutral-node)', border: 'var(--color-border)', text: 'var(--color-text-primary)', connector: 'var(--color-bg-neutral-node)' } 
+  },
+  'process': { 
+    shape: 'rect', w: 100, h: 45, 
+    style: { fill: 'var(--color-bg-sap-function)', border: 'var(--color-bg-sap-function)', text: 'var(--color-text-secondary)', connector: 'var(--color-bg-sap-function)' } 
+  },
+  'data': { 
+    shape: 'hexagon', w: 120, h: 55, 
+    style: { fill: 'var(--color-bg-neutral-node)', border: 'var(--color-border)', text: 'var(--color-text-primary)', connector: 'var(--color-bg-neutral-node)' } 
+  },
+  // ---------------------------------------
   'process-red': { 
     shape: 'rect', w: 100, h: 45, 
     style: { fill: 'var(--color-bg-manual-function)', border: 'var(--color-bg-manual-function)', text: 'var(--color-text-secondary)', connector: 'var(--color-bg-manual-function)' } 
@@ -65,9 +79,14 @@ export function layoutRoadmapNodes(diagram: RoadmapDiagram, opts: LayoutOptions)
   const lanePadY = 8
 
   const laneIndexById = new Map<string, number>()
-  diagram.lanes.forEach((l, idx) => laneIndexById.set(l.id, idx))
+  if (diagram.lanes) {
+    diagram.lanes.forEach((l, idx) => laneIndexById.set(l.id, idx))
+  }
 
-  return diagram.nodes.map((n: RoadmapNode) => {
+  // Ensure diagram.nodes exists before mapping
+  const nodesToLayout = diagram.nodes || []
+
+  return nodesToLayout.map((n: RoadmapNode) => {
     const laneIdx = laneIndexById.get(n.laneId) ?? 0
     
     // 1. Fetch visual footprint based entirely on 'type'
@@ -94,7 +113,7 @@ export function layoutRoadmapNodes(diagram: RoadmapDiagram, opts: LayoutOptions)
     let x = cellX + (opts.laneWidth - w) / 2
     
     // If order modifier is used, shift it but strictly clamp it inside the box
-    if (n.order !== 0) {
+    if (n.order !== 0 && n.order !== undefined) {
       const offset = n.order * (w + 10)
       x += offset
       x = Math.max(cellX + lanePadX, Math.min(cellX + opts.laneWidth - w - lanePadX, x))
@@ -104,13 +123,14 @@ export function layoutRoadmapNodes(diagram: RoadmapDiagram, opts: LayoutOptions)
     const y = cellY + (rowGap - h) / 2
 
     return { 
-      ...n, 
-      x, 
-      y, 
-      w, 
-      h, 
-      shape: visualConfig.shape, 
-      style: visualConfig.style 
+      ...n,
+      label: (n as any).label ?? n.title,
+      x,
+      y,
+      w,
+      h,
+      shape: visualConfig.shape,
+      style: visualConfig.style,
     }
   })
 }

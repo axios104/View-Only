@@ -28,7 +28,7 @@ export function RoadmapView() {
   }, [])
 
   useEffect(() => {
-    if (diagram) window.setTimeout(() => canvasRef.current?.fit(), 0)
+    if (diagram) window.setTimeout(() => canvasRef.current?.reset(), 0)
   }, [diagram])
 
   return (
@@ -109,12 +109,53 @@ export function RoadmapView() {
       <Modal title="Process Step Details" open={!!selectedNode} onClose={() => setSelectedNode(null)}>
         {selectedNode && (
           <div className="space-y-3">
-            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-text-primary/70">Label</div><div className="col-span-2 font-semibold whitespace-pre-wrap">{selectedNode.label}</div></div>
-            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-text-primary/70">ID</div><div className="col-span-2 font-semibold text-sm">{selectedNode.id}</div></div>
-            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-text-primary/70">Type</div><div className="col-span-2 font-semibold uppercase text-xs">{selectedNode.workType}</div></div>
-            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-text-primary/70">Shape</div><div className="col-span-2 font-semibold capitalize text-xs">{selectedNode.shape}</div></div>
-            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-text-primary/70">Status</div><div className="col-span-2 font-semibold text-green-600 text-sm">Active</div></div>
-            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border"><div className="text-xs text-text-primary/70">Description</div><div className="col-span-2 text-sm text-text-primary/80">This process component executes required business logic for the {selectedNode.workType} system. Mock data populated successfully.</div></div>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="text-xs text-text-primary/70">Label</div>
+              <div className="col-span-2 font-semibold whitespace-pre-wrap">{selectedNode.label}</div>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="text-xs text-text-primary/70">ID</div>
+              <div className="col-span-2 font-semibold text-sm">{selectedNode.id}</div>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="text-xs text-text-primary/70">Type</div>
+              <div className="col-span-2 font-semibold uppercase text-xs">{selectedNode.type}</div>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="text-xs text-text-primary/70">Shape</div>
+              <div className="col-span-2 font-semibold capitalize text-xs">{selectedNode.shape}</div>
+            </div>
+            {selectedNode.description && (
+              <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border">
+                <div className="text-xs text-text-primary/70">Description</div>
+                <div className="col-span-2 text-sm text-text-primary/80 whitespace-pre-wrap">
+                  {selectedNode.description}
+                </div>
+              </div>
+            )}
+            {selectedNode.metadata && Object.keys(selectedNode.metadata).length > 0 && (
+              <div className="pt-2 border-t border-border space-y-1">
+                <div className="text-xs font-semibold text-text-primary/70">Additional Details</div>
+                <dl className="space-y-1">
+                  {Object.entries(selectedNode.metadata).map(([key, value]) =>
+                    value ? (
+                      <div key={key} className="grid grid-cols-3 gap-2 text-xs">
+                        <dt className="text-text-primary/70">{key}</dt>
+                        <dd className="col-span-2 font-medium break-all">
+                          {key === 'Manual URL' ? (
+                            <a href={value} target="_blank" rel="noreferrer" className="text-primary underline">
+                              {value}
+                            </a>
+                          ) : (
+                            value
+                          )}
+                        </dd>
+                      </div>
+                    ) : null
+                  )}
+                </dl>
+              </div>
+            )}
           </div>
         )}
       </Modal>

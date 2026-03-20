@@ -1,57 +1,145 @@
-import type { RoadmapDiagram } from '../types/roadmap'
+// src/mock/roadmapDiagram.ts
+import type { RawFlowchartRow } from '../types/roadmap';
 
-export const mockRoadmapDiagram: RoadmapDiagram = {
-  canvas: { width: 1400, height: 1600 },
-  people: [
-    { id: 'p1', name: 'Sales Person', role: 'Sales', email: 'sales@example.com', location: 'Seoul', team: 'Sales' }
-  ],
-  lanes: [
-    { id: 'l1', title: 'Organization...', personId: null },
-    { id: 'l2', title: 'Carries out & Supports', personId: 'p1' },
-    { id: 'l3', title: 'Carries out & Supports', personId: null },
-  ],
-  nodes: [
-    // Lane 1
-    { id: 'n2', laneId: 'l1', label: '5.1.1.81. Customer\nGroup\nManagement.Substrate', level: 2, order: 0, type: 'substrate' },
-    { id: 'n3', laneId: 'l1', label: '5.4.1.11. Normal\nselling price\nregistration.Substrate', level: 3, order: 0, type: 'substrate' },
-
-    // Lane 2
-    { id: 'n1', laneId: 'l2', label: 'Normal order\ncreation start', level: 0, order: -0.5, type: 'start' },
-    { id: 'n4', laneId: 'l2', label: 'Get the PO of the\ncustomer', level: 1, order: 0.5, type: 'process-red' },
-    { id: 'n5', laneId: 'l2', label: '거래선PO입력\n(KO)', level: 2.5, order: 0.5, type: 'process-blue' },
-    { id: 'n6', laneId: 'l2', label: 'SalesPrice', level: 3.5, order: -0.5, type: 'document' },
-    { id: 'n7', laneId: 'l2', label: 'OI Master', level: 4.5, order: -0.5, type: 'document' },
-    { id: 'n8', laneId: 'l2', label: 'Request Proposal', level: 4, order: 0.5, type: 'process-blue' },
-    { id: 'n9', laneId: 'l2', label: 'ATP allocation', level: 5.5, order: 0.5, type: 'decision' },
-    { id: 'n10', laneId: 'l2', label: 'Create SalesOrder', level: 7.5, order: 0.5, type: 'process-blue' },
-    { id: 'n11', laneId: 'l2', label: 'SalesOrder', level: 8.5, order: 1.2, type: 'document' },
-    { id: 'n18', laneId: 'l2', label: 'Normal order\ncreation finish', level: 12, order: 0.5, type: 'end' },
-
-    // Lane 3
-    { id: 'n12', laneId: 'l3', label: '5.4.3.20.Move Allocat\nion', level: 5.5, order: 0, type: 'substrate' },
-    { id: 'n13', laneId: 'l3', label: '5.4.8.30.Order\ndelivery\nconsent.Substrate', level: 6.5, order: 0, type: 'substrate' },
-    { id: 'n14', laneId: 'l3', label: '5.4.2.81. Create PO\nbetween\nplant.Substrate', level: 7.5, order: 0, type: 'substrate' },
-    { id: 'n15', laneId: 'l3', label: '5.4.2.90.OEM order\nchange.Substrate', level: 8.5, order: 0, type: 'substrate' },
-    { id: 'n16', laneId: 'l3', label: '8.2.1.22. Product\nprogression\nstop.Substrate', level: 9.5, order: 0, type: 'substrate' },
-    { id: 'n17', laneId: 'l3', label: '8.2.3.20.MASSLAM\nMngt. Substrate', level: 10.5, order: 0, type: 'substrate' },
-  ],
-  edges: [
-    { id: 'e1', from: 'n1', to: 'n4', fromAnchor: 'right', toAnchor: 'top' },
-    { id: 'e2', from: 'n4', to: 'n5', fromAnchor: 'bottom', toAnchor: 'top' },
-    { id: 'e3', from: 'n2', to: 'n5', fromAnchor: 'right', toAnchor: 'left' },
-    { id: 'e4', from: 'n3', to: 'n5', fromAnchor: 'right', toAnchor: 'left' },
-    { id: 'e5', from: 'n5', to: 'n6', fromAnchor: 'bottom', toAnchor: 'top' },
-    { id: 'e6', from: 'n5', to: 'n8', fromAnchor: 'bottom', toAnchor: 'top' },
-    { id: 'e7', from: 'n7', to: 'n8', fromAnchor: 'right', toAnchor: 'left' },
-    { id: 'e8', from: 'n8', to: 'n9', fromAnchor: 'bottom', toAnchor: 'top' },
-    { id: 'e9', from: 'n9', to: 'n12', fromAnchor: 'right', toAnchor: 'left', label: 'N' },
-    { id: 'e10', from: 'n9', to: 'n10', fromAnchor: 'bottom', toAnchor: 'top', label: 'Y' },
-    { id: 'e11', from: 'n10', to: 'n11', fromAnchor: 'right', toAnchor: 'left' },
-    { id: 'e12', from: 'n10', to: 'n13', fromAnchor: 'right', toAnchor: 'left' },
-    { id: 'e13', from: 'n10', to: 'n14', fromAnchor: 'right', toAnchor: 'left' },
-    { id: 'e14', from: 'n10', to: 'n15', fromAnchor: 'right', toAnchor: 'left' },
-    { id: 'e15', from: 'n10', to: 'n16', fromAnchor: 'right', toAnchor: 'left' },
-    { id: 'e16', from: 'n10', to: 'n17', fromAnchor: 'right', toAnchor: 'left' },
-    { id: 'e17', from: 'n10', to: 'n18', fromAnchor: 'bottom', toAnchor: 'top' },
-  ],
-}
+// Mock flow modeled loosely after the reference screenshot:
+// - Multiple lanes (Customer, Sales Person, Back Office, Logistics)
+// - A start, several process steps, one decision with Y/N branches, and terminating steps.
+// Structure (column names) is preserved so it matches the flat Excel/CSV shape.
+export const mockRawData: RawFlowchartRow[] = [
+  {
+    "L1 Text": "Sales",
+    "L2 Text": "Order Management",
+    "Serial ID": "S1",
+    "L5 Text": "Customer Initiates Inquiry",
+    "Level": 1,
+    "Role": "Customer",
+    "internal ID": "NODE_1",
+    "Type Text": "Start",
+    "To. Relationship (Y)": "NODE_2",
+    "Description": "Customer contacts sales with a product or pricing inquiry.",
+    "Create Person": "Abhinav",
+    "Create Date": "2026-03-20"
+  },
+  {
+    "L1 Text": "Sales",
+    "L2 Text": "Order Management",
+    "Serial ID": "S2",
+    "L5 Text": "Capture Requirements",
+    "Level": 2,
+    "Role": "Sales Person",
+    "internal ID": "NODE_2",
+    "Type Text": "Process",
+    "To. Relationship (Y)": "NODE_3",
+    "Description": "Sales person clarifies scope, quantity, and requested delivery date.",
+    "Output": "Documented Customer Requirements"
+  },
+  {
+    "L1 Text": "Sales",
+    "L2 Text": "Order Management",
+    "Serial ID": "S3",
+    "L5 Text": "Create Quotation",
+    "Level": 2,
+    "Role": "Sales Person",
+    "internal ID": "NODE_3",
+    "Type Text": "Process",
+    "To. Relationship (Y)": "NODE_4",
+    "T-code": "VA21",
+    "Description": "Prepare the commercial offer in the system.",
+    "Output": "Quotation"
+  },
+  {
+    "L1 Text": "Sales",
+    "L2 Text": "Order Management",
+    "Serial ID": "S4",
+    "L5 Text": "Customer Reviews Offer",
+    "Level": 3,
+    "Role": "Customer",
+    "internal ID": "NODE_4",
+    "Type Text": "Decision",
+    "To. Relationship (Y)": "NODE_5",
+    "To. Relationship (Y) Text": "Accept",
+    "To. Relationship (N)": "NODE_6",
+    "To. Relationship (N) Text": "Reject / Revise",
+    "Description": "Customer reviews pricing and terms and decides whether to proceed."
+  },
+  {
+    "L1 Text": "Sales",
+    "L2 Text": "Order Management",
+    "Serial ID": "S5",
+    "L5 Text": "Revise Quotation",
+    "Level": 4,
+    "Role": "Sales Person",
+    "internal ID": "NODE_6",
+    "Type Text": "Process",
+    "To. Relationship (Y)": "NODE_3",
+    "Description": "Revise the quotation based on customer feedback and resend.",
+    "Output": "Updated Quotation"
+  },
+  {
+    "L1 Text": "Sales",
+    "L2 Text": "Order Management",
+    "Serial ID": "S6",
+    "L5 Text": "Create Sales Order",
+    "Level": 4,
+    "Role": "Back Office",
+    "internal ID": "NODE_5",
+    "Type Text": "Process",
+    "To. Relationship (Y)": "NODE_7",
+    "T-code": "VA01",
+    "Description": "Convert the accepted quotation into a sales order in the system.",
+    "Output": "Sales Order"
+  },
+  {
+    "L1 Text": "Sales",
+    "L2 Text": "Order Management",
+    "Serial ID": "S7",
+    "L5 Text": "Check Availability (ATP)",
+    "Level": 5,
+    "Role": "Back Office",
+    "internal ID": "NODE_7",
+    "Type Text": "Decision",
+    "To. Relationship (Y)": "NODE_8",
+    "To. Relationship (Y) Text": "Available",
+    "To. Relationship (N)": "NODE_9",
+    "To. Relationship (N) Text": "Not Available",
+    "T-code": "CO09",
+    "Description": "Run availability check for requested materials and delivery date."
+  },
+  {
+    "L1 Text": "Sales",
+    "L2 Text": "Order Management",
+    "Serial ID": "S8",
+    "L5 Text": "Confirm Delivery Date",
+    "Level": 6,
+    "Role": "Back Office",
+    "internal ID": "NODE_8",
+    "Type Text": "Process",
+    "To. Relationship (Y)": "NODE_10",
+    "Description": "Confirm order quantities and delivery dates to the customer.",
+    "Output": "Confirmed Sales Order"
+  },
+  {
+    "L1 Text": "Sales",
+    "L2 Text": "Order Management",
+    "Serial ID": "S9",
+    "L5 Text": "Reschedule / Allocation Review",
+    "Level": 6,
+    "Role": "Logistics",
+    "internal ID": "NODE_9",
+    "Type Text": "Process",
+    "To. Relationship (Y)": "NODE_7",
+    "Description": "Review stock allocation or propose alternative delivery dates.",
+    "Output": "Revised Availability"
+  },
+  {
+    "L1 Text": "Sales",
+    "L2 Text": "Order Management",
+    "Serial ID": "S10",
+    "L5 Text": "Complete Order & Archive",
+    "Level": 7,
+    "Role": "Back Office",
+    "internal ID": "NODE_10",
+    "Type Text": "Terminator",
+    "Description": "Order is released to downstream execution and archived for tracking."
+  }
+];
