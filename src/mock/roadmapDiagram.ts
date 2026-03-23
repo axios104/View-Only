@@ -100,8 +100,8 @@ export const mockRawData: RawFlowchartRow[] = [
     "Type Text": "Decision",
     "To. Relationship (Y)": "NODE_8",
     "To. Relationship (Y) Text": "Available",
-    "To. Relationship (N)": "NODE_9",
-    "To. Relationship (N) Text": "Not Available",
+    "To. Relationship (N)": "NODE_9, NODE_11",
+    "To. Relationship (N) Text": "Not Available, Escalate",
     "T-code": "CO09",
     "Description": "Run availability check for requested materials and delivery date."
   },
@@ -141,5 +141,18 @@ export const mockRawData: RawFlowchartRow[] = [
     "internal ID": "NODE_10",
     "Type Text": "Terminator",
     "Description": "Order is released to downstream execution and archived for tracking."
+  },
+  {
+    "L1 Text": "Sales",
+    "L2 Text": "Order Management",
+    "Serial ID": "S11",
+    "L5 Text": "Escalate to Manager",
+    "Level": 5,
+    "Role": "Back Office",
+    "internal ID": "NODE_11",
+    "Type Text": "Process",
+    "To. Relationship (Y)": "NODE_7",
+    "Description": "Escalate the availability issue to management for resolution.",
+    "Output": "Escalation Ticket"
   }
 ];

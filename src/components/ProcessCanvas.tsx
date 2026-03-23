@@ -368,12 +368,11 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
       <div className="absolute inset-0 pointer-events-none"
         style={{
           backgroundImage: `
-            radial-gradient(circle, color-mix(in srgb, var(--color-border) 65%, transparent) 1px, transparent 1px),
-            radial-gradient(circle at 20px 20px, color-mix(in srgb, var(--color-border) 65%, transparent) 1px, transparent 1px)
+            radial-gradient(circle, rgba(100, 116, 139, 0.5) 1.5px, transparent 1.5px),
+            radial-gradient(circle at 20px 20px, rgba(100, 116, 139, 0.5) 1.5px, transparent 1.5px)
           `,
           backgroundSize: `40px 40px`,
           backgroundPosition: `0 0, 20px 20px`,
-          opacity: 0.4,
         }}
       />
       <div className="absolute left-0 top-0"

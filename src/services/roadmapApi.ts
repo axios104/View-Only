@@ -52,23 +52,31 @@ function transformRawDataToDiagram(rows: RawFlowchartRow[]): RoadmapDiagram {
       }
     });
 
-    // 4. Map Edges (Relationships)
+    // 4. Map Edges (Relationships) - supports comma-separated targets and labels
     if (row["To. Relationship (Y)"]) {
-      edges.push({
-        id: `edge-${nodeId}-to-${row["To. Relationship (Y)"]}-Y`,
-        source: nodeId,
-        target: row["To. Relationship (Y)"],
-        label: row["To. Relationship (Y) Text"] || undefined
-      });
+      const yTargets = row["To. Relationship (Y)"].split(',').map(t => t.trim()).filter(Boolean)
+      const yLabels = row["To. Relationship (Y) Text"]?.split(',').map(l => l.trim()) || []
+      yTargets.forEach((target, idx) => {
+        edges.push({
+          id: `edge-${nodeId}-to-${target}-Y-${idx}`,
+          source: nodeId,
+          target: target,
+          label: yLabels[idx] || undefined
+        })
+      })
     }
 
     if (row["To. Relationship (N)"]) {
-      edges.push({
-        id: `edge-${nodeId}-to-${row["To. Relationship (N)"]}-N`,
-        source: nodeId,
-        target: row["To. Relationship (N)"],
-        label: row["To. Relationship (N) Text"] || undefined
-      });
+      const nTargets = row["To. Relationship (N)"].split(',').map(t => t.trim()).filter(Boolean)
+      const nLabels = row["To. Relationship (N) Text"]?.split(',').map(l => l.trim()) || []
+      nTargets.forEach((target, idx) => {
+        edges.push({
+          id: `edge-${nodeId}-to-${target}-N-${idx}`,
+          source: nodeId,
+          target: target,
+          label: nLabels[idx] || undefined
+        })
+      })
     }
   });
 
