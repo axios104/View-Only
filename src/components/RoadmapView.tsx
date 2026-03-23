@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useAppSelector, useAppDispatch } from '../store/hooks'
 import { setHandMode, setMagnifierMode } from '../store/canvasSlice'
 import { fetchDiagram } from '../store/diagramSlice'
-import type { Person, Lane } from '../types/roadmap'
+import { getNodeDetails } from '../services/roadmapApi'
+import type { Person, Lane, NodeDetails } from '../types/roadmap'
 import { Modal } from './Modal'
 import { ProcessCanvas, type ProcessCanvasApi } from './ProcessCanvas'
 import type { PositionedRoadmapNode } from '../layout/layoutRoadmap'
@@ -14,6 +15,8 @@ export function RoadmapView() {
   // Modals state
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null)
   const [selectedNode, setSelectedNode] = useState<PositionedRoadmapNode | null>(null)
+  const [selectedNodeDetails, setSelectedNodeDetails] = useState<NodeDetails | null>(null)
+  const [nodeDetailsLoading, setNodeDetailsLoading] = useState(false)
   const [selectedLane, setSelectedLane] = useState<Lane | null>(null)
 
   const { handMode, magnifierMode } = useAppSelector((s) => s.canvas)
@@ -26,6 +29,26 @@ export function RoadmapView() {
   useEffect(() => {
     if (diagram) window.setTimeout(() => canvasRef.current?.reset(), 0)
   }, [diagram])
+
+  // Fetch node details when a node is clicked
+  const handleNodeClick = async (node: PositionedRoadmapNode) => {
+    setSelectedNode(node)
+    setNodeDetailsLoading(true)
+    try {
+      const details = await getNodeDetails(node.id)
+      setSelectedNodeDetails(details)
+    } catch (err) {
+      console.error('Failed to fetch node details:', err)
+      setSelectedNodeDetails(null)
+    } finally {
+      setNodeDetailsLoading(false)
+    }
+  }
+
+  const closeNodeModal = () => {
+    setSelectedNode(null)
+    setSelectedNodeDetails(null)
+  }
 
   return (
     <main className="flex h-full flex-col bg-[var(--color-bg-body)]">
@@ -91,7 +114,7 @@ export function RoadmapView() {
             ref={canvasRef}
             diagram={diagram}
             onPersonClick={(p) => setSelectedPerson(p)}
-            onNodeClick={(n) => setSelectedNode(n)}
+            onNodeClick={handleNodeClick}
             onLaneClick={(l) => setSelectedLane(l)}
           />
         ) : loading ? (
@@ -127,58 +150,99 @@ export function RoadmapView() {
       </Modal>
 
       {/* Node Component Modal */}
-      <Modal title="Process Step Details" open={!!selectedNode} onClose={() => setSelectedNode(null)}>
-        {selectedNode && (
+      <Modal title="Process Step Details" open={!!selectedNode} onClose={closeNodeModal}>
+        {nodeDetailsLoading ? (
+          <div className="flex items-center justify-center py-6">
+            <div className="text-sm text-text-primary/70">Loading node details…</div>
+          </div>
+        ) : selectedNodeDetails ? (
           <div className="space-y-3">
             <div className="grid grid-cols-3 gap-2">
-              <div className="text-xs text-text-primary/70">Label</div>
-              <div className="col-span-2 font-semibold whitespace-pre-wrap">{selectedNode.label}</div>
+              <div className="text-xs text-text-primary/70">Node ID</div>
+              <div className="col-span-2 font-semibold text-sm">{selectedNodeDetails.NodeID}</div>
             </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="text-xs text-text-primary/70">Type</div>
+              <div className="col-span-2">
+                <span className="inline-block bg-primary/10 text-primary px-2 py-1 rounded text-xs font-semibold uppercase">
+                  {selectedNodeDetails.Type}
+                </span>
+              </div>
+            </div>
+            {selectedNodeDetails.Description && (
+              <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border">
+                <div className="text-xs text-text-primary/70">Description</div>
+                <div className="col-span-2 text-sm text-text-primary/80 whitespace-pre-wrap">
+                  {selectedNodeDetails.Description}
+                </div>
+              </div>
+            )}
+            <div className="pt-2 border-t border-border space-y-2">
+              {selectedNodeDetails.CreateDate && (
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div className="text-text-primary/70">Created</div>
+                  <div className="col-span-2 font-medium">{selectedNodeDetails.CreateDate}</div>
+                </div>
+              )}
+              {selectedNodeDetails.ChangeDate && (
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div className="text-text-primary/70">Changed</div>
+                  <div className="col-span-2 font-medium">{selectedNodeDetails.ChangeDate}</div>
+                </div>
+              )}
+              {selectedNodeDetails.CreatePerson && (
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div className="text-text-primary/70">Created By</div>
+                  <div className="col-span-2 font-medium">{selectedNodeDetails.CreatePerson}</div>
+                </div>
+              )}
+              {selectedNodeDetails.ChangePerson && (
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div className="text-text-primary/70">Changed By</div>
+                  <div className="col-span-2 font-medium">{selectedNodeDetails.ChangePerson}</div>
+                </div>
+              )}
+            </div>
+            <div className="pt-2 border-t border-border space-y-2">
+              {selectedNodeDetails.TCode && (
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div className="text-text-primary/70">T-Code</div>
+                  <div className="col-span-2 font-medium text-primary">{selectedNodeDetails.TCode}</div>
+                </div>
+              )}
+              {selectedNodeDetails.Manual && (
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div className="text-text-primary/70">Manual</div>
+                  <div className="col-span-2">
+                    <a href={selectedNodeDetails.Manual} target="_blank" rel="noreferrer" className="text-primary underline hover:text-primary/80">
+                      View Manual
+                    </a>
+                  </div>
+                </div>
+              )}
+              {selectedNodeDetails.Output && (
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div className="text-text-primary/70">Output</div>
+                  <div className="col-span-2 font-medium">{selectedNodeDetails.Output}</div>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : selectedNode ? (
+          <div className="space-y-3">
             <div className="grid grid-cols-3 gap-2">
               <div className="text-xs text-text-primary/70">ID</div>
               <div className="col-span-2 font-semibold text-sm">{selectedNode.id}</div>
             </div>
             <div className="grid grid-cols-3 gap-2">
-              <div className="text-xs text-text-primary/70">Type</div>
-              <div className="col-span-2 font-semibold uppercase text-xs">{selectedNode.type}</div>
+              <div className="text-xs text-text-primary/70">Label</div>
+              <div className="col-span-2 font-semibold whitespace-pre-wrap">{selectedNode.label}</div>
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              <div className="text-xs text-text-primary/70">Shape</div>
-              <div className="col-span-2 font-semibold capitalize text-xs">{selectedNode.shape}</div>
+            <div className="text-xs text-text-primary/70 pt-2">
+              <em>Detailed information not available</em>
             </div>
-            {selectedNode.description && (
-              <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border">
-                <div className="text-xs text-text-primary/70">Description</div>
-                <div className="col-span-2 text-sm text-text-primary/80 whitespace-pre-wrap">
-                  {selectedNode.description}
-                </div>
-              </div>
-            )}
-            {selectedNode.metadata && Object.keys(selectedNode.metadata).length > 0 && (
-              <div className="pt-2 border-t border-border space-y-1">
-                <div className="text-xs font-semibold text-text-primary/70">Additional Details</div>
-                <dl className="space-y-1">
-                  {Object.entries(selectedNode.metadata).map(([key, value]) =>
-                    value ? (
-                      <div key={key} className="grid grid-cols-3 gap-2 text-xs">
-                        <dt className="text-text-primary/70">{key}</dt>
-                        <dd className="col-span-2 font-medium break-all">
-                          {key === 'Manual URL' ? (
-                            <a href={value} target="_blank" rel="noreferrer" className="text-primary underline">
-                              {value}
-                            </a>
-                          ) : (
-                            value
-                          )}
-                        </dd>
-                      </div>
-                    ) : null
-                  )}
-                </dl>
-              </div>
-            )}
           </div>
-        )}
+        ) : null}
       </Modal>
 
       {/* Lane / Grid Header Modal */}

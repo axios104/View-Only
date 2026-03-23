@@ -14,35 +14,17 @@ export type NodeShape =
   | 'arrow-right'
   | 'substrate';
 
-export interface RawFlowchartRow {
-  "L1 ID"?: string;
-  "L1 Text"?: string;
-  "L2 ID"?: string;
-  "L2 Text"?: string;
-  "L3 ID"?: string;
-  "L3 Text"?: string;
-  "L4 ID"?: string;
-  "L4 Text"?: string;
-  "Serial ID"?: string;
-  "L5 Text": string;
-  "Level": number | string;
-  "Role": string;
-  "Type"?: string;
-  "From. Relationship"?: string;
-  "To. Relationship (Y)"?: string;
-  "To. Relationship (Y) Text"?: string;
-  "To. Relationship (N)"?: string;
-  "To. Relationship (N) Text"?: string;
-  "internal ID": string;
-  "Type Text": string;
-  "T-code"?: string;
-  "Description"?: string;
-  "Manual URL"?: string;
-  "Output"?: string;
-  "Create Date"?: string;
-  "Create Person"?: string;
-  "Change Date"?: string;
-  "Change Person"?: string;
+// New simplified data format for flowchart nodes
+export interface FlowchartNode {
+  Title: string;
+  Level: number;
+  LaneID: number;  // Numeric lane identifier
+  NodeID: string;
+  ActivityType: string;
+  ToRelationship: Array<{
+    Target: string;
+    EdgeLabel: string;
+  }>;
 }
 
 export interface RoadmapLane {
@@ -108,4 +90,18 @@ export interface RoadmapDiagram {
   edges: RoadmapEdge[];
   people?: Person[];
   canvas?: RoadmapCanvas;
+}
+
+// Node details fetched on-demand when node is clicked
+export interface NodeDetails {
+  NodeID: string;
+  Type: string;
+  Description: string;
+  CreateDate: string;
+  ChangeDate: string;
+  TCode: string;
+  Manual: string;
+  Output: string;
+  CreatePerson: string;
+  ChangePerson: string;
 }

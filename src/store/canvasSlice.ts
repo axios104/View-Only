@@ -38,13 +38,8 @@ const canvasSlice = createSlice({
       state.magnifierMode = action.payload
       if (action.payload) state.handMode = false
     },
-    resetView(state) {
-      state.scale = 1
-      state.tx = 0
-      state.ty = 0
-    },
   },
 })
 
-export const { setScale, setTranslate, setHandMode, setMagnifierMode, resetView } = canvasSlice.actions
+export const { setScale, setTranslate, setHandMode, setMagnifierMode } = canvasSlice.actions
 export const canvasReducer = canvasSlice.reducer

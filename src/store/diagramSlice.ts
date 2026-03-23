@@ -1,4 +1,4 @@
-import { createSlice, createAsyncThunk, type PayloadAction } from '@reduxjs/toolkit'
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import type { RoadmapDiagram } from '../types/roadmap'
 import { getRoadmapDiagram } from '../services/roadmapApi'
 
@@ -29,16 +29,7 @@ export const fetchDiagram = createAsyncThunk(
 const diagramSlice = createSlice({
   name: 'diagram',
   initialState,
-  reducers: {
-    setDiagram(state, action: PayloadAction<RoadmapDiagram>) {
-      state.data = action.payload
-      state.error = null
-    },
-    clearDiagram(state) {
-      state.data = null
-      state.error = null
-    },
-  },
+  reducers: {},
   extraReducers: (builder) => {
     builder
       .addCase(fetchDiagram.pending, (state) => {
@@ -57,5 +48,4 @@ const diagramSlice = createSlice({
   },
 })
 
-export const { setDiagram, clearDiagram } = diagramSlice.actions
 export const diagramReducer = diagramSlice.reducer
