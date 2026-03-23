@@ -10,12 +10,12 @@ import type { PositionedRoadmapNode } from '../layout/layoutRoadmap'
 export function RoadmapView() {
   const dispatch = useAppDispatch()
   const canvasRef = useRef<ProcessCanvasApi | null>(null)
-  
+
   // Modals state
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null)
   const [selectedNode, setSelectedNode] = useState<PositionedRoadmapNode | null>(null)
   const [selectedLane, setSelectedLane] = useState<Lane | null>(null)
-  
+
   const { handMode, magnifierMode } = useAppSelector((s) => s.canvas)
   const { data: diagram, loading, error } = useAppSelector((s) => s.diagram)
 
@@ -30,88 +30,88 @@ export function RoadmapView() {
   return (
     <main className="flex h-full flex-col bg-[var(--color-bg-body)]">
       <section className="relative flex-1 flex-col">
-          <div className="absolute top-4 right-4 z-10 flex items-center gap-1 rounded-md border border-border bg-card p-1 shadow-md">
-            <button
-              type="button"
-              onClick={() => dispatch(setHandMode(!handMode))}
-              className={`grid size-7 place-items-center rounded-sm border text-sm font-semibold transition-colors ${handMode ? 'bg-primary text-primary-foreground border-primary' : 'bg-btn text-text-primary border-transparent'}`}
-              aria-label="Hand Mode"
-              title="Pan Tool"
-            >
-              ✋
-            </button>
-            <button
-              type="button"
-              onClick={() => dispatch(setMagnifierMode(!magnifierMode))}
-              className={`grid size-7 place-items-center rounded-sm border text-sm font-semibold transition-colors ${magnifierMode ? 'bg-primary text-primary-foreground border-primary' : 'bg-btn text-text-primary border-transparent'}`}
-              aria-label="Magnifier"
-              title="Zoom Tool"
-            >
-              🔍
-            </button>
-            <button
-              type="button"
-              onClick={() => dispatch(fetchDiagram())}
-              disabled={loading}
-              className="grid size-7 place-items-center rounded-sm border border-transparent bg-btn text-base font-bold text-text-primary hover:bg-border disabled:opacity-50"
-              aria-label="Refresh"
-              title="Refresh Diagram"
-            >
-              🔄
-            </button>
-            <div className="w-[1px] h-5 bg-border mx-1" />
-            <button
-              type="button"
-              onClick={() => canvasRef.current?.zoomOut()}
-              className="grid size-7 place-items-center rounded-sm border border-transparent bg-btn text-base font-bold text-text-primary hover:bg-border"
-              title="Zoom Out"
-            >
-              −
-            </button>
-            <button
-              type="button"
-              onClick={() => canvasRef.current?.reset()}
-              className="grid h-7 place-items-center rounded-sm border border-transparent bg-btn text-xs font-bold text-text-primary hover:bg-border px-2 w-auto"
-              title="Reset View"
-            >
-              Reset
-            </button>
-            <button
-              type="button"
-              onClick={() => canvasRef.current?.zoomIn()}
-              className="grid size-7 place-items-center rounded-sm border border-transparent bg-btn text-base font-bold text-text-primary hover:bg-border"
-              title="Zoom In"
-            >
-              +
-            </button>
-          </div>
+        <div className="absolute top-4 right-4 z-10 flex items-center gap-1 rounded-md border border-border bg-card p-1 shadow-md">
+          <button
+            type="button"
+            onClick={() => dispatch(setHandMode(!handMode))}
+            className={`grid size-7 place-items-center rounded-sm border text-sm font-semibold transition-colors ${handMode ? 'bg-primary text-primary-foreground border-primary' : 'bg-btn text-text-primary border-transparent'}`}
+            aria-label="Hand Mode"
+            title="Pan Tool"
+          >
+            ✋
+          </button>
+          <button
+            type="button"
+            onClick={() => dispatch(setMagnifierMode(!magnifierMode))}
+            className={`grid size-7 place-items-center rounded-sm border text-sm font-semibold transition-colors ${magnifierMode ? 'bg-primary text-primary-foreground border-primary' : 'bg-btn text-text-primary border-transparent'}`}
+            aria-label="Magnifier"
+            title="Zoom Tool"
+          >
+            🔍
+          </button>
+          <button
+            type="button"
+            onClick={() => dispatch(fetchDiagram())}
+            disabled={loading}
+            className="grid size-7 place-items-center rounded-sm border border-transparent bg-btn text-base font-bold text-text-primary hover:bg-border disabled:opacity-50"
+            aria-label="Refresh"
+            title="Refresh Diagram"
+          >
+            🔄
+          </button>
+          <div className="w-[1px] h-5 bg-border mx-1" />
+          <button
+            type="button"
+            onClick={() => canvasRef.current?.zoomOut()}
+            className="grid size-7 place-items-center rounded-sm border border-transparent bg-btn text-base font-bold text-text-primary hover:bg-border"
+            title="Zoom Out"
+          >
+            −
+          </button>
+          <button
+            type="button"
+            onClick={() => canvasRef.current?.reset()}
+            className="grid h-7 place-items-center rounded-sm border border-transparent bg-btn text-xs font-bold text-text-primary hover:bg-border px-2 w-auto"
+            title="Reset View"
+          >
+            Reset
+          </button>
+          <button
+            type="button"
+            onClick={() => canvasRef.current?.zoomIn()}
+            className="grid size-7 place-items-center rounded-sm border border-transparent bg-btn text-base font-bold text-text-primary hover:bg-border"
+            title="Zoom In"
+          >
+            +
+          </button>
+        </div>
 
-          {diagram ? (
-            <ProcessCanvas
-              ref={canvasRef}
-              diagram={diagram}
-              onPersonClick={(p) => setSelectedPerson(p)}
-              onNodeClick={(n) => setSelectedNode(n)}
-              onLaneClick={(l) => setSelectedLane(l)}
-            />
-          ) : loading ? (
-            <div className="grid h-full place-items-center text-sm text-text-primary/70">Loading…</div>
-          ) : error ? (
-            <div className="grid h-full place-items-center">
-              <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-6 py-5 text-sm text-red-600">
-                <div className="font-semibold">Error loading diagram</div>
-                <div className="mt-1">{error}</div>
-                <button
-                  onClick={() => dispatch(fetchDiagram())}
-                  className="mt-3 px-3 py-1 bg-red-600 text-white rounded text-xs font-semibold hover:bg-red-700"
-                >
-                  Try Again
-                </button>
-              </div>
+        {diagram ? (
+          <ProcessCanvas
+            ref={canvasRef}
+            diagram={diagram}
+            onPersonClick={(p) => setSelectedPerson(p)}
+            onNodeClick={(n) => setSelectedNode(n)}
+            onLaneClick={(l) => setSelectedLane(l)}
+          />
+        ) : loading ? (
+          <div className="grid h-full place-items-center text-sm text-text-primary/70">Loading…</div>
+        ) : error ? (
+          <div className="grid h-full place-items-center">
+            <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-6 py-5 text-sm text-red-600">
+              <div className="font-semibold">Error loading diagram</div>
+              <div className="mt-1">{error}</div>
+              <button
+                onClick={() => dispatch(fetchDiagram())}
+                className="mt-3 px-3 py-1 bg-red-600 text-white rounded text-xs font-semibold hover:bg-red-700"
+              >
+                Try Again
+              </button>
             </div>
-          ) : (
-            <div className="grid h-full place-items-center text-sm text-text-primary/70">No diagram available</div>
-          )}
+          </div>
+        ) : (
+          <div className="grid h-full place-items-center text-sm text-text-primary/70">No diagram available</div>
+        )}
       </section>
 
       {/* User / Person Modal */}
