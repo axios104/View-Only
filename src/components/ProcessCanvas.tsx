@@ -34,38 +34,38 @@ function anchorPoint(n: PositionedRoadmapNode, a: Anchor): { x: number; y: numbe
 function NodeBg({ shape, fill, border }: { shape: NodeShape, fill: string, border: string }) {
   if (shape === 'decision') {
     return (
-      <svg className="absolute inset-0 h-full w-full drop-shadow-sm" preserveAspectRatio="none" viewBox="0 0 100 100">
-        <polygon points="50,2 98,50 50,98 2,50" fill={fill} stroke={border} strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
+      <svg className="absolute inset-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 100 100" style={{ filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.12))' }}>
+        <polygon points="50,2 98,50 50,98 2,50" fill={fill} stroke={border} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
       </svg>
     )
   }
   if (shape === 'hexagon') {
     return (
-      <svg className="absolute inset-0 h-full w-full drop-shadow-sm" preserveAspectRatio="none" viewBox="0 0 100 100">
-        <polygon points="12,2 88,2 98,50 88,98 12,98 2,50" fill={fill} stroke={border} strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
+      <svg className="absolute inset-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 100 100" style={{ filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.12))' }}>
+        <polygon points="12,2 88,2 98,50 88,98 12,98 2,50" fill={fill} stroke={border} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
       </svg>
     )
   }
   if (shape === 'document') {
     return (
-      <svg className="absolute inset-0 h-full w-full drop-shadow-sm" preserveAspectRatio="none" viewBox="0 0 100 100">
-        <polygon points="2,2 75,2 98,25 98,98 2,98" fill={fill} stroke={border} strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
-        <polyline points="75,2 75,25 98,25" fill="none" stroke={border} strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
+      <svg className="absolute inset-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 100 100" style={{ filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.12))' }}>
+        <polygon points="2,2 75,2 98,25 98,98 2,98" fill={fill} stroke={border} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+        <polyline points="75,2 75,25 98,25" fill="none" stroke={border} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
       </svg>
     )
   }
   if (shape === 'rounded-rect' || shape === 'rect') {
-    const rx = shape === 'rounded-rect' ? "12" : "2"
+    const rx = shape === 'rounded-rect' ? "10" : "2"
     return (
-      <svg className="absolute inset-0 h-full w-full drop-shadow-sm" preserveAspectRatio="none" viewBox="0 0 100 100">
-        <rect x="2" y="2" width="96" height="96" rx={rx} fill={fill} stroke={border} strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
+      <svg className="absolute inset-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 100 100" style={{ filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.12))' }}>
+        <rect x="2" y="2" width="96" height="96" rx={rx} fill={fill} stroke={border} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
       </svg>
     )
   }
   if (shape === 'arrow-right') {
     return (
-      <svg className="absolute inset-0 h-full w-full drop-shadow-sm" preserveAspectRatio="none" viewBox="0 0 100 100">
-        <polygon points="2,2 85,2 98,50 85,98 2,98 15,50" fill={fill} stroke={border} strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
+      <svg className="absolute inset-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 100 100" style={{ filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.12))' }}>
+        <polygon points="2,2 85,2 98,50 85,98 2,98 15,50" fill={fill} stroke={border} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
       </svg>
     )
   }
@@ -74,7 +74,7 @@ function NodeBg({ shape, fill, border }: { shape: NodeShape, fill: string, borde
 
 function Node({ n }: { n: PositionedRoadmapNode }) {
   // `overflow-hidden` prevents label text from bleeding into neighboring nodes.
-  const base = 'absolute grid select-none place-items-center text-center text-[10px] leading-tight overflow-hidden transition-transform duration-150 hover:brightness-105 hover:scale-[1.02] z-10 cursor-pointer'
+  const base = 'absolute grid select-none place-items-center text-center text-[11px] leading-snug overflow-hidden transition-all duration-200 hover:brightness-110 hover:scale-105 z-10 cursor-pointer'
 
   return (
     <div
@@ -188,16 +188,35 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
   }, [positionedNodes])
 
   const edges = useMemo(() => {
-    return safeDiagram.edges.map((e) => {
-      const fromN = nodesById.get(e.from || e.source) // Handle adapter 'source/target' mapping safety
+    const edgesList = safeDiagram.edges.map((e) => {
+      const fromN = nodesById.get(e.from || e.source)
       const toN = nodesById.get(e.to || e.target)
       if (!fromN || !toN) return null
       const from = anchorPoint(fromN, e.fromAnchor ?? 'right')
       const to = anchorPoint(toN, e.toAnchor ?? 'left')
-      // Use a consistent connector color so all lines match the primary flow color
       const connector = 'var(--color-bg-sap-function)'
-      return { id: e.id, from, to, connector, label: e.label ?? null }
+      return { id: e.id, from, to, connector, label: e.label ?? null, source: e.from || e.source, target: e.to || e.target }
     }).filter(Boolean) as any[]
+    
+    // Detect and offset parallel/duplicate connectors
+    const edgesByPair = new Map<string, any[]>()
+    edgesList.forEach(edge => {
+      const key1 = `${edge.source}->${edge.target}`
+      const key = edgesByPair.has(key1) ? key1 : key1
+      if (!edgesByPair.has(key)) edgesByPair.set(key, [])
+      edgesByPair.get(key)!.push(edge)
+    })
+    
+    // Apply offset to parallel connectors
+    const offsetEdges = edgesList.map(edge => {
+      const key = `${edge.source}->${edge.target}`
+      const parallelEdges = edgesByPair.get(key) || []
+      const index = parallelEdges.indexOf(edge)
+      const offset = index > 0 ? (index - (parallelEdges.length - 1) / 2) * 12 : 0
+      return { ...edge, offset }
+    })
+    
+    return offsetEdges
   }, [safeDiagram.edges, nodesById])
 
   const zoomAround = (nextScale: number, clientX: number, clientY: number) => {
@@ -237,15 +256,15 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
     dispatch(setTranslate(getClampedTranslate(nextTx, nextTy, targetScale)))
   }
 
-  // Reset to an "extreme left" anchored view so the chart is not fit-to-screen.
+  // Reset to top-left view so the chart starts from the beginning.
   // This makes the rest of the flow accessible via pan (drag / wheel).
   const resetToLeft = () => {
     const el = viewportRef.current
     if (!el) return
 
     const resetScale = 1
-    // Force tx to the leftmost allowed value and ty to the topmost allowed value.
-    const clamped = getClampedTranslate(-1e9, 1e9, resetScale)
+    // Reset to (0, 0) which gets clamped to the topmost-leftmost allowed position.
+    const clamped = getClampedTranslate(0, 0, resetScale)
 
     dispatch(setScale(resetScale))
     dispatch(setTranslate(clamped))
@@ -348,18 +367,22 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
     >
       <div className="absolute inset-0 pointer-events-none"
         style={{
-          backgroundImage: 'radial-gradient(circle, color-mix(in srgb, var(--color-border) 95%, transparent) 1px, transparent 1px)',
-          backgroundSize: `${20 * scale}px ${20 * scale}px`,
-          backgroundPosition: `${tx}px ${ty}px`,
+          backgroundImage: `
+            radial-gradient(circle, color-mix(in srgb, var(--color-border) 65%, transparent) 1px, transparent 1px),
+            radial-gradient(circle at 20px 20px, color-mix(in srgb, var(--color-border) 65%, transparent) 1px, transparent 1px)
+          `,
+          backgroundSize: `40px 40px`,
+          backgroundPosition: `0 0, 20px 20px`,
+          opacity: 0.4,
         }}
       />
       <div className="absolute left-0 top-0"
         style={{ transform: `translate(${tx}px, ${ty}px) scale(${scale})`, transformOrigin: '0 0', width: safeDiagram.canvas.width, height: docHeight }}
       >
         {safeDiagram.lanes.map((lane, idx) => (
-          <div key={`v-grid-${lane.id}`} className="pointer-events-none absolute top-0 w-[2.5px] bg-border z-0 shadow-sm" style={{ left: idx * laneWidth, height: contentHeight }} />
+          <div key={`v-grid-${lane.id}`} className="pointer-events-none absolute top-0 z-0" style={{ left: idx * laneWidth, width: '3px', height: contentHeight, backgroundColor: 'var(--color-border)', opacity: 0.75 }} />
         ))}
-        <div className="pointer-events-none absolute top-0 w-[2.5px] bg-border z-0 shadow-sm" style={{ left: safeDiagram.lanes.length * laneWidth, height: contentHeight }} />
+        <div className="pointer-events-none absolute top-0 z-0" style={{ left: safeDiagram.lanes.length * laneWidth, width: '3px', height: contentHeight, backgroundColor: 'var(--color-border)', opacity: 0.75 }} />
 
         <div className="absolute left-0 top-0 z-20" style={{ width: safeDiagram.canvas.width, height: headerH }}>
           {safeDiagram.lanes.map((lane, idx) => {
@@ -367,12 +390,12 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
             return (
               <div key={lane.id} data-person-id={person?.id ?? undefined} data-lane-id={lane.id}
                 onClick={() => !handMode && onLaneClick?.(lane)}
-                className="absolute top-0 flex items-center justify-between border-b-4 border-border bg-card px-4 py-3 text-left shadow-md cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-                style={{ left: idx * laneWidth, width: laneWidth, height: headerH, borderRight: idx === safeDiagram.lanes.length - 1 ? '2.5px solid var(--color-border)' : '2.5px solid var(--color-border)' }}
+                className="absolute top-0 flex items-center justify-between bg-gradient-to-b from-card to-card/80 px-4 py-3 text-left cursor-pointer hover:from-card hover:to-card/90 transition-all duration-200 border-b border-border/50"
+                style={{ left: idx * laneWidth, width: laneWidth, height: headerH, borderRight: '3px solid var(--color-border)' }}
               >
                 <div>
-                  <div className="text-xs font-bold text-text-primary/70">{lane.title}</div>
-                  <div className="mt-1 text-sm font-semibold text-primary">{person?.name ?? '—'}</div>
+                  <div className="text-xs font-semibold text-text-primary/60 tracking-wide">{lane.title}</div>
+                  <div className="mt-1 text-sm font-bold text-primary/80">{person?.name ?? '—'}</div>
                 </div>
                 {person && <Avatar name={person.name} />}
               </div>
@@ -381,16 +404,31 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
         </div>
 
         <svg className="pointer-events-none absolute inset-0 z-0" width={safeDiagram.canvas.width} height={docHeight}>
+          <defs>
+            <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+              <polygon points="0 0, 10 3, 0 6" fill="var(--color-bg-sap-function)" />
+            </marker>
+          </defs>
           {edges.map((e) => {
             const midX = (e.from.x + e.to.x) / 2
-            const midY = (e.from.y + e.to.y) / 2
+            const vGap = Math.abs(e.to.y - e.from.y)
+            const bendY = e.from.y + vGap / 2
+            const isGoingRight = e.to.x >= e.from.x
+            const labelX = isGoingRight ? midX + 40 : midX - 40
+            const labelY = bendY - 15
+            const offset = (e.offset || 0)
+            const bendXOffset = midX + offset
+            
             return (
               <g key={e.id}>
-                <path d={`M ${e.from.x} ${e.from.y} L ${midX} ${e.from.y} L ${midX} ${e.to.y} L ${e.to.x} ${e.to.y}`}
-                  stroke={e.connector} strokeWidth={3} fill="none" strokeOpacity={0.8} strokeLinejoin="round" />
-                <circle cx={e.to.x} cy={e.to.y} r={5} fill={e.connector} />
+                {/* Connector path with offset for parallel edges */}
+                <path d={`M ${e.from.x} ${e.from.y} L ${bendXOffset} ${e.from.y} L ${bendXOffset} ${e.to.y} L ${e.to.x} ${e.to.y}`}
+                  stroke={e.connector} strokeWidth={2} fill="none" strokeOpacity={0.85} strokeLinecap="round" strokeLinejoin="round" markerEnd="url(#arrowhead)" />
+                <circle cx={e.to.x} cy={e.to.y} r={3.5} fill={e.connector} opacity={0.9} />
+                {/* Label positioned to the SIDE based on connector direction */}
                 {e.label && (
-                  <text x={midX} y={midY - 10} textAnchor="middle" fontSize={11} fill="var(--color-text-primary)" fontWeight={700}>
+                  <text x={labelX} y={labelY} textAnchor={isGoingRight ? 'start' : 'end'} fontSize={11} fill="var(--color-text-primary)" fontWeight={600}
+                    style={{ pointerEvents: 'none' }}>
                     {e.label}
                   </text>
                 )}
@@ -444,7 +482,7 @@ function MiniMap({ diagram, docHeight, viewportRef, scale, tx, ty, onJump, posit
   }
 
   return (
-    <div className="pointer-events-auto absolute bottom-4 right-4 z-50 rounded-md border-2 border-border bg-card shadow-lg p-2 transition-transform hover:scale-105">
+    <div className="pointer-events-auto absolute bottom-4 right-4 z-50 rounded-md border border-border bg-card shadow-md p-2 transition-transform hover:scale-105">
       <div className="text-xs font-semibold mb-2 text-text-primary/70">Mini Map</div>
       <div className="relative overflow-hidden rounded-sm border border-border/50 bg-[var(--color-bg-body)]"
         style={{ width: safeCanvasW * s, height: docHeight * s, cursor: isDragging ? 'grabbing' : 'pointer' }}
@@ -452,7 +490,7 @@ function MiniMap({ diagram, docHeight, viewportRef, scale, tx, ty, onJump, posit
         onPointerMove={(e) => { if (isDragging) updateJump(e); }}
         onPointerUp={(e) => { setIsDragging(false); e.currentTarget.releasePointerCapture(e.pointerId); }}
       >
-        <div className="absolute inset-0 pointer-events-none opacity-20 bg-primary/10" />
+        <div className="absolute inset-0 pointer-events-none opacity-15 bg-primary/10" />
         
         <div className="absolute inset-0 pointer-events-none">
           <svg width="100%" height="100%" viewBox={`0 0 ${safeCanvasW} ${docHeight}`}>
@@ -460,7 +498,7 @@ function MiniMap({ diagram, docHeight, viewportRef, scale, tx, ty, onJump, posit
               const midX = (e.from.x + e.to.x) / 2
               return (
                 <path key={`mini-${e.id}`} d={`M ${e.from.x} ${e.from.y} L ${midX} ${e.from.y} L ${midX} ${e.to.y} L ${e.to.x} ${e.to.y}`}
-                  stroke={e.connector} strokeWidth={8} fill="none" opacity={0.6} />
+                  stroke={e.connector} strokeWidth={7} fill="none" opacity={0.6} strokeLinecap="round" strokeLinejoin="round" />
               )
             })}
             {positionedNodes.map(n => (
@@ -470,7 +508,7 @@ function MiniMap({ diagram, docHeight, viewportRef, scale, tx, ty, onJump, posit
         </div>
 
         {viewportRef.current && (
-          <div className="absolute border-[1.5px] border-primary bg-primary/20 pointer-events-none shadow-sm transition-none"
+          <div className="absolute border-[1.5px] border-primary/70 bg-primary/15 pointer-events-none shadow-sm transition-none rounded-sm"
             style={{
               left: (-tx / scale) * s,
               top: (-ty / scale) * s,

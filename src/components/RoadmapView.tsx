@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAppSelector, useAppDispatch } from '../store/hooks'
 import { setHandMode, setMagnifierMode } from '../store/canvasSlice'
-import type { Person, RoadmapDiagram, Lane } from '../types/roadmap'
+import { fetchDiagram } from '../store/diagramSlice'
+import type { Person, Lane } from '../types/roadmap'
 import { Modal } from './Modal'
 import { ProcessCanvas, type ProcessCanvasApi } from './ProcessCanvas'
-import { getRoadmapDiagram } from '../services/roadmapApi'
 import type { PositionedRoadmapNode } from '../layout/layoutRoadmap'
 
 export function RoadmapView() {
@@ -17,15 +17,11 @@ export function RoadmapView() {
   const [selectedLane, setSelectedLane] = useState<Lane | null>(null)
   
   const { handMode, magnifierMode } = useAppSelector((s) => s.canvas)
-  const [diagram, setDiagram] = useState<RoadmapDiagram | null>(null)
+  const { data: diagram, loading, error } = useAppSelector((s) => s.diagram)
 
   useEffect(() => {
-    let cancelled = false
-    void getRoadmapDiagram().then((data) => {
-      if (!cancelled) setDiagram(data)
-    })
-    return () => { cancelled = true }
-  }, [])
+    dispatch(fetchDiagram())
+  }, [dispatch])
 
   useEffect(() => {
     if (diagram) window.setTimeout(() => canvasRef.current?.reset(), 0)
@@ -52,6 +48,16 @@ export function RoadmapView() {
               title="Zoom Tool"
             >
               🔍
+            </button>
+            <button
+              type="button"
+              onClick={() => dispatch(fetchDiagram())}
+              disabled={loading}
+              className="grid size-7 place-items-center rounded-sm border border-transparent bg-btn text-base font-bold text-text-primary hover:bg-border disabled:opacity-50"
+              aria-label="Refresh"
+              title="Refresh Diagram"
+            >
+              🔄
             </button>
             <div className="w-[1px] h-5 bg-border mx-1" />
             <button
@@ -88,8 +94,23 @@ export function RoadmapView() {
               onNodeClick={(n) => setSelectedNode(n)}
               onLaneClick={(l) => setSelectedLane(l)}
             />
-          ) : (
+          ) : loading ? (
             <div className="grid h-full place-items-center text-sm text-text-primary/70">Loading…</div>
+          ) : error ? (
+            <div className="grid h-full place-items-center">
+              <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-6 py-5 text-sm text-red-600">
+                <div className="font-semibold">Error loading diagram</div>
+                <div className="mt-1">{error}</div>
+                <button
+                  onClick={() => dispatch(fetchDiagram())}
+                  className="mt-3 px-3 py-1 bg-red-600 text-white rounded text-xs font-semibold hover:bg-red-700"
+                >
+                  Try Again
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="grid h-full place-items-center text-sm text-text-primary/70">No diagram available</div>
           )}
       </section>
 

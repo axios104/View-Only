@@ -23,7 +23,8 @@ const canvasSlice = createSlice({
   initialState,
   reducers: {
     setScale(state, action: PayloadAction<number>) {
-      state.scale = clamp(action.payload, 0.25, 4.0)
+      // Changed minimum from 0.25 to 0.05 to allow wide diagrams to fit on screen
+      state.scale = clamp(action.payload, 0.05, 4.0)
     },
     setTranslate(state, action: PayloadAction<{ tx: number; ty: number }>) {
       state.tx = action.payload.tx
