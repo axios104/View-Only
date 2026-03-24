@@ -471,6 +471,10 @@ function MiniMap({ diagram, docHeight, viewportRef, scale, tx, ty, onJump, posit
   const safeCanvasW = diagram.canvas?.width || 2000
   const s = Math.min(miniWidth / safeCanvasW, miniHeight / docHeight)
   const [isDragging, setIsDragging] = useState(false)
+  const [isDraggingMinimap, setIsDraggingMinimap] = useState(false)
+  const [minimapPos, setMinimapPos] = useState({ x: window.innerWidth - 220 - 16 - 8, y: window.innerHeight - 160 - 16 - 8 })
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+  const minimapContainerRef = useRef<HTMLDivElement>(null)
 
   const updateJump = (e: React.PointerEvent) => {
     const rect = e.currentTarget.getBoundingClientRect()
@@ -480,11 +484,66 @@ function MiniMap({ diagram, docHeight, viewportRef, scale, tx, ty, onJump, posit
     onJump({ tx: vRect.width / 2 - worldX * scale, ty: vRect.height / 2 - worldY * scale })
   }
 
+  const handleMinimapDragStart = (e: React.PointerEvent<HTMLDivElement>) => {
+    // Only drag from the title bar, not from the canvas area
+    if ((e.target as HTMLElement).closest('.minimap-canvas')) {
+      return
+    }
+    setIsDraggingMinimap(true)
+    setDragStart({ x: e.clientX - minimapPos.x, y: e.clientY - minimapPos.y })
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+
+  const handleMinimapDragMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDraggingMinimap) return
+    
+    let newX = e.clientX - dragStart.x
+    let newY = e.clientY - dragStart.y
+
+    // Bounds checking - account for actual minimap dimensions and padding
+    const actualWidth = safeCanvasW * s
+    const actualHeight = docHeight * s
+    const padding = 16 // p-2 = 0.5rem * 2 sides
+    const titleHeight = 24 // approximate height of title and margin
+    
+    const minX = 0
+    const maxX = window.innerWidth - actualWidth - padding
+    const minY = 0
+    const maxY = window.innerHeight - actualHeight - titleHeight - padding
+
+    newX = Math.max(minX, Math.min(maxX, newX))
+    newY = Math.max(minY, Math.min(maxY, newY))
+
+    setMinimapPos({ x: newX, y: newY })
+  }
+
+  const handleMinimapDragEnd = (e: React.PointerEvent<HTMLDivElement>) => {
+    setIsDraggingMinimap(false)
+    e.currentTarget.releasePointerCapture(e.pointerId)
+  }
+
   return (
-    <div className="pointer-events-auto absolute bottom-4 right-4 z-50 rounded-md border border-border bg-card shadow-md p-2 transition-transform hover:scale-105">
+    <div 
+      ref={minimapContainerRef}
+      className="pointer-events-auto fixed z-50 rounded-md border border-border bg-card shadow-md p-2 transition-transform hover:scale-105"
+      style={{
+        left: `${minimapPos.x}px`,
+        top: `${minimapPos.y}px`,
+        cursor: isDraggingMinimap ? 'grabbing' : 'grab',
+      }}
+      onPointerDown={handleMinimapDragStart}
+      onPointerMove={handleMinimapDragMove}
+      onPointerUp={handleMinimapDragEnd}
+      onPointerLeave={(e) => {
+        if (isDraggingMinimap) {
+          setIsDraggingMinimap(false)
+          e.currentTarget.releasePointerCapture(e.pointerId)
+        }
+      }}
+    >
       <div className="text-xs font-semibold mb-2 text-text-primary/70">Mini Map</div>
-      <div className="relative overflow-hidden rounded-sm border border-border/50 bg-[var(--color-bg-body)]"
-        style={{ width: safeCanvasW * s, height: docHeight * s, cursor: isDragging ? 'grabbing' : 'pointer' }}
+      <div className="minimap-canvas relative overflow-hidden rounded-sm border border-border/50 bg-[var(--color-bg-body)]"
+        style={{ width: safeCanvasW * s, height: docHeight * s, cursor: isDragging ? 'grabbing' : 'pointer', pointerEvents: 'auto' }}
         onPointerDown={(e) => { setIsDragging(true); e.currentTarget.setPointerCapture(e.pointerId); updateJump(e); }}
         onPointerMove={(e) => { if (isDragging) updateJump(e); }}
         onPointerUp={(e) => { setIsDragging(false); e.currentTarget.releasePointerCapture(e.pointerId); }}
