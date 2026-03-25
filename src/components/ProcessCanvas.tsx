@@ -120,6 +120,7 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
   const dispatch = useAppDispatch()
   const { scale, tx, ty, handMode, magnifierMode } = useAppSelector((s) => s.canvas)
   const viewportRef = useRef<HTMLDivElement | null>(null)
+  const transformLayerRef = useRef<HTMLDivElement | null>(null)
   
   const [dragging, setDragging] = useState(false)
   const lastPointerRef = useRef<{ x: number; y: number } | null>(null)
@@ -320,7 +321,6 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
           x: e.clientX, y: e.clientY, moved: false
         }
 
-        let raf: number | null = null
         let currentTx = tx
         let currentTy = ty
 
@@ -337,19 +337,19 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
             clickCandidateRef.current.moved = true
           }
 
-          if (raf == null) {
-            raf = window.requestAnimationFrame(() => {
-              dispatch(setTranslate({ tx: currentTx, ty: currentTy }))
-              raf = null
-            })
+          // Direct DOM manipulation — bypasses React/Redux for zero-lag panning
+          if (transformLayerRef.current) {
+            transformLayerRef.current.style.transform = `translate(${currentTx}px, ${currentTy}px) scale(${scale})`
           }
         }
 
         const onUp = (ev: PointerEvent) => {
           window.removeEventListener('pointermove', onMove)
           window.removeEventListener('pointerup', onUp)
-          if (raf) window.cancelAnimationFrame(raf)
           setDragging(false)
+
+          // Sync final position back to Redux (single dispatch, single re-render)
+          dispatch(setTranslate({ tx: currentTx, ty: currentTy }))
 
           try { e.currentTarget.releasePointerCapture(e.pointerId) } catch {}
 
@@ -376,6 +376,7 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
         }}
       />
       <div className="absolute left-0 top-0"
+        ref={transformLayerRef}
         style={{ transform: `translate(${tx}px, ${ty}px) scale(${scale})`, transformOrigin: '0 0', width: safeDiagram.canvas.width, height: docHeight }}
       >
         {safeDiagram.lanes.map((lane, idx) => (
@@ -467,12 +468,13 @@ type MiniMapProps = {
 function MiniMap({ diagram, docHeight, viewportRef, scale, tx, ty, onJump, positionedNodes, edges }: MiniMapProps) {
   const miniWidth = 220
   const miniHeight = 160
-  // Handle case where width could be 0 safely
   const safeCanvasW = diagram.canvas?.width || 2000
   const s = Math.min(miniWidth / safeCanvasW, miniHeight / docHeight)
   const [isDragging, setIsDragging] = useState(false)
+
+  // null = default bottom-right anchored position; { x, y } = user-dragged position
+  const [customPos, setCustomPos] = useState<{ x: number; y: number } | null>(null)
   const [isDraggingMinimap, setIsDraggingMinimap] = useState(false)
-  const [minimapPos, setMinimapPos] = useState({ x: window.innerWidth - 220 - 16 - 8, y: window.innerHeight - 160 - 16 - 8 })
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const minimapContainerRef = useRef<HTMLDivElement>(null)
 
@@ -485,36 +487,34 @@ function MiniMap({ diagram, docHeight, viewportRef, scale, tx, ty, onJump, posit
   }
 
   const handleMinimapDragStart = (e: React.PointerEvent<HTMLDivElement>) => {
-    // Only drag from the title bar, not from the canvas area
-    if ((e.target as HTMLElement).closest('.minimap-canvas')) {
-      return
+    if ((e.target as HTMLElement).closest('.minimap-canvas')) return
+    // If still at default position, compute current absolute coords from the DOM
+    if (!customPos && minimapContainerRef.current && viewportRef.current) {
+      const mmRect = minimapContainerRef.current.getBoundingClientRect()
+      const vpRect = viewportRef.current.getBoundingClientRect()
+      setCustomPos({ x: mmRect.left - vpRect.left, y: mmRect.top - vpRect.top })
+      setDragStart({ x: e.clientX - (mmRect.left - vpRect.left), y: e.clientY - (mmRect.top - vpRect.top) })
+    } else if (customPos) {
+      setDragStart({ x: e.clientX - customPos.x, y: e.clientY - customPos.y })
     }
     setIsDraggingMinimap(true)
-    setDragStart({ x: e.clientX - minimapPos.x, y: e.clientY - minimapPos.y })
     e.currentTarget.setPointerCapture(e.pointerId)
   }
 
   const handleMinimapDragMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isDraggingMinimap) return
-    
+    if (!isDraggingMinimap || !viewportRef.current) return
+    const vpRect = viewportRef.current.getBoundingClientRect()
+    const mmEl = minimapContainerRef.current
+    const mmW = mmEl?.offsetWidth ?? 240
+    const mmH = mmEl?.offsetHeight ?? 200
+
     let newX = e.clientX - dragStart.x
     let newY = e.clientY - dragStart.y
 
-    // Bounds checking - account for actual minimap dimensions and padding
-    const actualWidth = safeCanvasW * s
-    const actualHeight = docHeight * s
-    const padding = 16 // p-2 = 0.5rem * 2 sides
-    const titleHeight = 24 // approximate height of title and margin
-    
-    const minX = 0
-    const maxX = window.innerWidth - actualWidth - padding
-    const minY = 0
-    const maxY = window.innerHeight - actualHeight - titleHeight - padding
+    newX = Math.max(0, Math.min(vpRect.width - mmW, newX))
+    newY = Math.max(0, Math.min(vpRect.height - mmH, newY))
 
-    newX = Math.max(minX, Math.min(maxX, newX))
-    newY = Math.max(minY, Math.min(maxY, newY))
-
-    setMinimapPos({ x: newX, y: newY })
+    setCustomPos({ x: newX, y: newY })
   }
 
   const handleMinimapDragEnd = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -522,15 +522,16 @@ function MiniMap({ diagram, docHeight, viewportRef, scale, tx, ty, onJump, posit
     e.currentTarget.releasePointerCapture(e.pointerId)
   }
 
+  // Position style: default = bottom-right anchored; dragged = absolute left/top
+  const positionStyle: React.CSSProperties = customPos
+    ? { left: customPos.x, top: customPos.y, cursor: isDraggingMinimap ? 'grabbing' : 'grab' }
+    : { right: 16, bottom: 16, cursor: 'grab' }
+
   return (
     <div 
       ref={minimapContainerRef}
-      className="pointer-events-auto fixed z-50 rounded-md border border-border bg-card shadow-md p-2 transition-transform hover:scale-105"
-      style={{
-        left: `${minimapPos.x}px`,
-        top: `${minimapPos.y}px`,
-        cursor: isDraggingMinimap ? 'grabbing' : 'grab',
-      }}
+      className="pointer-events-auto absolute z-50 rounded-md border border-border bg-card shadow-md p-2"
+      style={positionStyle}
       onPointerDown={handleMinimapDragStart}
       onPointerMove={handleMinimapDragMove}
       onPointerUp={handleMinimapDragEnd}
