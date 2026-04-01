@@ -227,14 +227,17 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
     const px = clientX - rect.left
     const py = clientY - rect.top
 
-    const worldX = (px - tx) / scale
-    const worldY = (py - ty) / scale
+    const worldX = (el.scrollLeft + px) / scale
+    const worldY = (el.scrollTop + py) / scale
 
-    const clampedScale = Math.max(0.25, Math.min(4.0, nextScale))
-    const nextTx = px - worldX * clampedScale
-    const nextTy = py - worldY * clampedScale
+    const clampedScale = Math.max(0.05, Math.min(4.0, nextScale))
     dispatch(setScale(clampedScale))
-    dispatch(setTranslate(getClampedTranslate(nextTx, nextTy, clampedScale)))
+
+    // After scale, scroll so same world point stays under cursor
+    requestAnimationFrame(() => {
+      el.scrollLeft = worldX * clampedScale - px
+      el.scrollTop = worldY * clampedScale - py
+    })
   }
 
   const fit = () => {
@@ -247,28 +250,23 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
     const padding = 50
     const targetScaleW = (rect.width - padding * 2) / contentW
     const targetScaleH = (rect.height - padding * 2) / contentH
-    const targetScale = Math.max(0.25, Math.min(2.5, Math.min(targetScaleW, targetScaleH)))
-
-    // Center the full diagram in the viewport.
-    const nextTx = (rect.width - contentW * targetScale) / 2
-    const nextTy = (rect.height - contentH * targetScale) / 2
+    const targetScale = Math.max(0.05, Math.min(2.5, Math.min(targetScaleW, targetScaleH)))
 
     dispatch(setScale(targetScale))
-    dispatch(setTranslate(getClampedTranslate(nextTx, nextTy, targetScale)))
+    requestAnimationFrame(() => {
+      el.scrollLeft = (contentW * targetScale - rect.width) / 2
+      el.scrollTop = 0
+    })
   }
 
-  // Reset to top-left view so the chart starts from the beginning.
-  // This makes the rest of the flow accessible via pan (drag / wheel).
   const resetToLeft = () => {
     const el = viewportRef.current
     if (!el) return
-
-    const resetScale = 1
-    // Reset to (0, 0) which gets clamped to the topmost-leftmost allowed position.
-    const clamped = getClampedTranslate(0, 0, resetScale)
-
-    dispatch(setScale(resetScale))
-    dispatch(setTranslate(clamped))
+    dispatch(setScale(1))
+    requestAnimationFrame(() => {
+      el.scrollLeft = 0
+      el.scrollTop = 0
+    })
   }
 
   useImperativeHandle(ref, () => ({
@@ -288,17 +286,23 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
   return (
     <div
       ref={viewportRef}
-      className={['relative h-full w-full overflow-hidden bg-[var(--color-bg-body)]', 
+      className={['relative h-full w-full overflow-auto bg-[var(--color-bg-body)]', 
         magnifierMode ? 'cursor-zoom-in' : (handMode ? (dragging ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-default'),
         className ?? ''].join(' ')}
       style={{ touchAction: 'none' }}
+      onScroll={() => {
+        // Sync scroll position to Redux for minimap
+        const el = viewportRef.current
+        if (el) {
+          dispatch(setTranslate({ tx: -el.scrollLeft, ty: -el.scrollTop }))
+        }
+      }}
       onWheel={(e) => {
         if (e.ctrlKey || e.metaKey) {
           e.preventDefault()
           zoomAround(scale * (e.deltaY > 0 ? 0.92 : 1.08), e.clientX, e.clientY)
-        } else {
-          dispatch(setTranslate(getClampedTranslate(tx - e.deltaX, ty - e.deltaY, scale)))
         }
+        // Normal wheel: let native scroll handle it
       }}
       onPointerDown={(e) => {
         if (magnifierMode) {
@@ -321,25 +325,20 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
           x: e.clientX, y: e.clientY, moved: false
         }
 
-        let currentTx = tx
-        let currentTy = ty
-
         const onMove = (ev: PointerEvent) => {
           const dx = ev.clientX - lastPointerRef.current!.x
           const dy = ev.clientY - lastPointerRef.current!.y
           lastPointerRef.current = { x: ev.clientX, y: ev.clientY }
-          
-          const clamped = getClampedTranslate(currentTx + dx, currentTy + dy, scale)
-          currentTx = clamped.tx
-          currentTy = clamped.ty
 
           if (!clickCandidateRef.current.moved && (Math.abs(dx) > 2 || Math.abs(dy) > 2)) {
             clickCandidateRef.current.moved = true
           }
 
-          // Direct DOM manipulation — bypasses React/Redux for zero-lag panning
-          if (transformLayerRef.current) {
-            transformLayerRef.current.style.transform = `translate(${currentTx}px, ${currentTy}px) scale(${scale})`
+          // Hand drag → native scroll
+          const vp = viewportRef.current
+          if (vp) {
+            vp.scrollLeft -= dx
+            vp.scrollTop -= dy
           }
         }
 
@@ -347,9 +346,6 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
           window.removeEventListener('pointermove', onMove)
           window.removeEventListener('pointerup', onUp)
           setDragging(false)
-
-          // Sync final position back to Redux (single dispatch, single re-render)
-          dispatch(setTranslate({ tx: currentTx, ty: currentTy }))
 
           try { e.currentTarget.releasePointerCapture(e.pointerId) } catch {}
 
@@ -365,20 +361,27 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
         window.addEventListener('pointerup', onUp)
       }}
     >
-      <div className="absolute inset-0 pointer-events-none"
-        style={{
-          backgroundImage: `
-            radial-gradient(circle, rgba(100, 116, 139, 0.5) 1.5px, transparent 1.5px),
-            radial-gradient(circle at 20px 20px, rgba(100, 116, 139, 0.5) 1.5px, transparent 1.5px)
-          `,
-          backgroundSize: `40px 40px`,
-          backgroundPosition: `0 0, 20px 20px`,
-        }}
-      />
-      <div className="absolute left-0 top-0"
-        ref={transformLayerRef}
-        style={{ transform: `translate(${tx}px, ${ty}px) scale(${scale})`, transformOrigin: '0 0', width: safeDiagram.canvas.width, height: docHeight }}
+      {/* Dot-grid background - fixed behind scroll */}
+      <div className="sticky inset-0 w-full h-0 pointer-events-none z-0">
+        <div className="absolute inset-0 pointer-events-none"
+          style={{
+            width: '100vw', height: '100vh',
+            backgroundImage: `
+              radial-gradient(circle, rgba(100, 116, 139, 0.5) 1.5px, transparent 1.5px),
+              radial-gradient(circle at 20px 20px, rgba(100, 116, 139, 0.5) 1.5px, transparent 1.5px)
+            `,
+            backgroundSize: `40px 40px`,
+            backgroundPosition: `0 0, 20px 20px`,
+          }}
+        />
+      </div>
+      <div
+        style={{ width: safeDiagram.canvas.width * scale, height: docHeight * scale, position: 'relative', flexShrink: 0 }}
       >
+        <div
+          ref={transformLayerRef}
+          style={{ transform: `scale(${scale})`, transformOrigin: '0 0', width: safeDiagram.canvas.width, height: docHeight, position: 'absolute', left: 0, top: 0 }}
+        >
         {safeDiagram.lanes.map((lane, idx) => (
           <div key={`v-grid-${lane.id}`} className="pointer-events-none absolute top-0 z-0" style={{ left: idx * laneWidth, width: '3px', height: contentHeight, backgroundColor: 'var(--color-border)', opacity: 0.75 }} />
         ))}
@@ -424,6 +427,9 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
                 {/* Connector path with offset for parallel edges */}
                 <path d={`M ${e.from.x} ${e.from.y} L ${bendXOffset} ${e.from.y} L ${bendXOffset} ${e.to.y} L ${e.to.x} ${e.to.y}`}
                   stroke={e.connector} strokeWidth={2} fill="none" strokeOpacity={0.85} strokeLinecap="round" strokeLinejoin="round" markerEnd="url(#arrowhead)" />
+                {/* Dot at source (departure from node) */}
+                <circle cx={e.from.x} cy={e.from.y} r={3.5} fill={e.connector} opacity={0.9} />
+                {/* Dot at target (arrival at node) */}
                 <circle cx={e.to.x} cy={e.to.y} r={3.5} fill={e.connector} opacity={0.9} />
                 {/* Label positioned to the SIDE based on connector direction */}
                 {e.label && (
@@ -437,7 +443,8 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
           })}
         </svg>
         {positionedNodes.map((n) => <Node key={n.id} n={n} />)}
-      </div>
+        </div>{/* close transform layer */}
+      </div>{/* close sizer */}
       <MiniMap 
         diagram={safeDiagram} 
         docHeight={docHeight} 
@@ -445,7 +452,13 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
         scale={scale} 
         tx={tx} 
         ty={ty} 
-        onJump={(next) => dispatch(setTranslate(getClampedTranslate(next.tx, next.ty, scale)))}
+        onJump={(next) => {
+          const vp = viewportRef.current
+          if (vp) {
+            vp.scrollLeft = -next.tx
+            vp.scrollTop = -next.ty
+          }
+        }}
         positionedNodes={positionedNodes}
         edges={edges}
       />
@@ -472,75 +485,26 @@ function MiniMap({ diagram, docHeight, viewportRef, scale, tx, ty, onJump, posit
   const s = Math.min(miniWidth / safeCanvasW, miniHeight / docHeight)
   const [isDragging, setIsDragging] = useState(false)
 
-  // null = default bottom-right anchored position; { x, y } = user-dragged position
-  const [customPos, setCustomPos] = useState<{ x: number; y: number } | null>(null)
-  const [isDraggingMinimap, setIsDraggingMinimap] = useState(false)
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
-  const minimapContainerRef = useRef<HTMLDivElement>(null)
-
   const updateJump = (e: React.PointerEvent) => {
     const rect = e.currentTarget.getBoundingClientRect()
+    // Convert minimap click to world coordinates, then to scroll position
     const worldX = (e.clientX - rect.left) / s
     const worldY = (e.clientY - rect.top) / s
-    const vRect = viewportRef.current!.getBoundingClientRect()
-    onJump({ tx: vRect.width / 2 - worldX * scale, ty: vRect.height / 2 - worldY * scale })
+    const vp = viewportRef.current
+    if (!vp) return
+    // Center the viewport on the clicked world point
+    vp.scrollLeft = worldX * scale - vp.clientWidth / 2
+    vp.scrollTop = worldY * scale - vp.clientHeight / 2
   }
 
-  const handleMinimapDragStart = (e: React.PointerEvent<HTMLDivElement>) => {
-    if ((e.target as HTMLElement).closest('.minimap-canvas')) return
-    // If still at default position, compute current absolute coords from the DOM
-    if (!customPos && minimapContainerRef.current && viewportRef.current) {
-      const mmRect = minimapContainerRef.current.getBoundingClientRect()
-      const vpRect = viewportRef.current.getBoundingClientRect()
-      setCustomPos({ x: mmRect.left - vpRect.left, y: mmRect.top - vpRect.top })
-      setDragStart({ x: e.clientX - (mmRect.left - vpRect.left), y: e.clientY - (mmRect.top - vpRect.top) })
-    } else if (customPos) {
-      setDragStart({ x: e.clientX - customPos.x, y: e.clientY - customPos.y })
-    }
-    setIsDraggingMinimap(true)
-    e.currentTarget.setPointerCapture(e.pointerId)
-  }
-
-  const handleMinimapDragMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isDraggingMinimap || !viewportRef.current) return
-    const vpRect = viewportRef.current.getBoundingClientRect()
-    const mmEl = minimapContainerRef.current
-    const mmW = mmEl?.offsetWidth ?? 240
-    const mmH = mmEl?.offsetHeight ?? 200
-
-    let newX = e.clientX - dragStart.x
-    let newY = e.clientY - dragStart.y
-
-    newX = Math.max(0, Math.min(vpRect.width - mmW, newX))
-    newY = Math.max(0, Math.min(vpRect.height - mmH, newY))
-
-    setCustomPos({ x: newX, y: newY })
-  }
-
-  const handleMinimapDragEnd = (e: React.PointerEvent<HTMLDivElement>) => {
-    setIsDraggingMinimap(false)
-    e.currentTarget.releasePointerCapture(e.pointerId)
-  }
-
-  // Position style: default = bottom-right anchored; dragged = absolute left/top
-  const positionStyle: React.CSSProperties = customPos
-    ? { left: customPos.x, top: customPos.y, cursor: isDraggingMinimap ? 'grabbing' : 'grab' }
-    : { right: 16, bottom: 16, cursor: 'grab' }
+  // Derive scroll position from tx/ty (tx = -scrollLeft, ty = -scrollTop)
+  const scrollLeft = -tx
+  const scrollTop = -ty
 
   return (
     <div 
-      ref={minimapContainerRef}
-      className="pointer-events-auto absolute z-50 rounded-md border border-border bg-card shadow-md p-2"
-      style={positionStyle}
-      onPointerDown={handleMinimapDragStart}
-      onPointerMove={handleMinimapDragMove}
-      onPointerUp={handleMinimapDragEnd}
-      onPointerLeave={(e) => {
-        if (isDraggingMinimap) {
-          setIsDraggingMinimap(false)
-          e.currentTarget.releasePointerCapture(e.pointerId)
-        }
-      }}
+      className="pointer-events-auto sticky z-50 rounded-md border border-border bg-card shadow-md p-2"
+      style={{ bottom: 16, left: 'calc(100% - 240px)', marginTop: -180, float: 'right' }}
     >
       <div className="text-xs font-semibold mb-2 text-text-primary/70">Mini Map</div>
       <div className="minimap-canvas relative overflow-hidden rounded-sm border border-border/50 bg-[var(--color-bg-body)]"
@@ -569,8 +533,8 @@ function MiniMap({ diagram, docHeight, viewportRef, scale, tx, ty, onJump, posit
         {viewportRef.current && (
           <div className="absolute border-[1.5px] border-primary/70 bg-primary/15 pointer-events-none shadow-sm transition-none rounded-sm"
             style={{
-              left: (-tx / scale) * s,
-              top: (-ty / scale) * s,
+              left: (scrollLeft / scale) * s,
+              top: (scrollTop / scale) * s,
               width: (viewportRef.current.clientWidth / scale) * s,
               height: (viewportRef.current.clientHeight / scale) * s,
             }}

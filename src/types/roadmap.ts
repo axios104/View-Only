@@ -14,17 +14,19 @@ export type NodeShape =
   | 'arrow-right'
   | 'substrate';
 
-// New simplified data format for flowchart nodes
+// Data format matching the Excel export (L5 ID → To Relationship (N) Text)
 export interface FlowchartNode {
-  Title: string;
-  Level: number;
-  LaneID: number;  // Numeric lane identifier
-  NodeID: string;
-  ActivityType: string;
-  ToRelationship: Array<{
-    Target: string;
-    EdgeLabel: string;
-  }>;
+  L5ID: string;               // Unique node identifier, e.g. "5.4.5.14.01"
+  L5Text: string;             // Node label, e.g. "판매반입Pegging실행"
+  Level: string;              // "L4" (section header) or "L5" (process step)
+  Role: string;               // Responsible role → used as Lane, e.g. "영업담당"
+  Type: string;               // "E" (SAP) | "M" (Manual) | ""
+  TypeText: string;           // "SAP" | "Manual" | ""
+  FromRelationship: string;   // L5 ID of incoming connection
+  ToRelationshipY: string;    // L5 ID of Yes/default outgoing target
+  ToRelationshipYText: string;// Edge label for Y path
+  ToRelationshipN: string;    // L5 ID of No/reject outgoing target
+  ToRelationshipNText: string;// Edge label for N path
 }
 
 export interface RoadmapLane {

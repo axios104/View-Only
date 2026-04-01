@@ -3,114 +3,146 @@ import type { FlowchartNode } from '../types/roadmap';
 
 export const mockRawData: FlowchartNode[] = [
   {
-    Title: "Customer Initiates Inquiry",
-    Level: 1,
-    LaneID: 1,
-    NodeID: "NODE_1",
-    ActivityType: "Start",
-    ToRelationship: [
-      { Target: "NODE_2", EdgeLabel: "Submit Inquiry" }
-    ]
+    L5ID: "5.4.5.14",
+    L5Text: "출하의뢰/판매반입",
+    Level: "L4",
+    Role: "",
+    Type: "",
+    TypeText: "",
+    FromRelationship: "",
+    ToRelationshipY: "5.4.5.14.02",
+    ToRelationshipYText: "",
+    ToRelationshipN: "",
+    ToRelationshipNText: ""
   },
   {
-    Title: "Capture Requirements",
-    Level: 2,
-    LaneID: 2,
-    NodeID: "NODE_2",
-    ActivityType: "Process",
-    ToRelationship: [
-      { Target: "NODE_3", EdgeLabel: "" }
-    ]
+    L5ID: "5.4.5.14.02",
+    L5Text: "판매반입 우선순위 등록",
+    Level: "L5",
+    Role: "판매관리",
+    Type: "E",
+    TypeText: "SAP",
+    FromRelationship: "5.4.5.14",
+    ToRelationshipY: "5.4.5.14.03",
+    ToRelationshipYText: "",
+    ToRelationshipN: "",
+    ToRelationshipNText: ""
   },
   {
-    Title: "Create Quotation",
-    Level: 3,
-    LaneID: 2,
-    NodeID: "NODE_3",
-    ActivityType: "Process",
-    ToRelationship: [
-      { Target: "NODE_4", EdgeLabel: "" }
-    ]
+    L5ID: "5.4.5.14.03",
+    L5Text: "수출DO거래선 등록",
+    Level: "L5",
+    Role: "판매관리",
+    Type: "E",
+    TypeText: "SAP",
+    FromRelationship: "5.4.5.14.02",
+    ToRelationshipY: "5.4.5.14.01",
+    ToRelationshipYText: "",
+    ToRelationshipN: "",
+    ToRelationshipNText: ""
   },
   {
-    Title: "Customer Reviews Offer",
-    Level: 3,
-    LaneID: 1,
-    NodeID: "NODE_4",
-    ActivityType: "Decision",
-    ToRelationship: [
-      { Target: "NODE_5", EdgeLabel: "Accept" },
-      { Target: "NODE_6", EdgeLabel: "Reject / Revise" }
-    ]
+    L5ID: "5.4.5.14.01",
+    L5Text: "판매반입Pegging실행",
+    Level: "L5",
+    Role: "영업담당",
+    Type: "E",
+    TypeText: "SAP",
+    FromRelationship: "5.4.5.14.03",
+    ToRelationshipY: "5.4.5.10.04",
+    ToRelationshipYText: "",
+    ToRelationshipN: "",
+    ToRelationshipNText: ""
   },
   {
-    Title: "Revise Quotation",
-    Level: 4,
-    LaneID: 2,
-    NodeID: "NODE_6",
-    ActivityType: "Process",
-    ToRelationship: [
-      { Target: "NODE_3", EdgeLabel: "" }
-    ]
+    L5ID: "5.4.5.10.04",
+    L5Text: "Pegging확인",
+    Level: "L5",
+    Role: "영업담당",
+    Type: "E",
+    TypeText: "SAP",
+    FromRelationship: "5.4.5.14.01",
+    ToRelationshipY: "5.4.5.10.03",
+    ToRelationshipYText: "Y",
+    ToRelationshipN: "5.4.5.11.07",
+    ToRelationshipNText: "N"
   },
   {
-    Title: "Create Sales Order",
-    Level: 4,
-    LaneID: 3,
-    NodeID: "NODE_5",
-    ActivityType: "Process",
-    ToRelationship: [
-      { Target: "NODE_7", EdgeLabel: "" }
-    ]
+    L5ID: "5.4.5.10.03",
+    L5Text: "자동출하의뢰",
+    Level: "L5",
+    Role: "영업담당",
+    Type: "E",
+    TypeText: "SAP",
+    FromRelationship: "5.4.5.10.04",
+    ToRelationshipY: "5.4.5.13.09",
+    ToRelationshipYText: "",
+    ToRelationshipN: "",
+    ToRelationshipNText: ""
   },
   {
-    Title: "Check Availability (ATP)",
-    Level: 5,
-    LaneID: 3,
-    NodeID: "NODE_7",
-    ActivityType: "Decision",
-    ToRelationship: [
-      { Target: "NODE_8", EdgeLabel: "Available" },
-      { Target: "NODE_9", EdgeLabel: "Not Available" },
-      { Target: "NODE_11", EdgeLabel: "Escalate" }
-    ]
+    L5ID: "5.4.5.11.07",
+    L5Text: "재고Swapping요청",
+    Level: "L5",
+    Role: "영업담당",
+    Type: "M",
+    TypeText: "Manual",
+    FromRelationship: "5.4.5.10.04",
+    ToRelationshipY: "5.4.5.11.09",
+    ToRelationshipYText: "",
+    ToRelationshipN: "",
+    ToRelationshipNText: ""
   },
   {
-    Title: "Confirm Delivery Date",
-    Level: 6,
-    LaneID: 3,
-    NodeID: "NODE_8",
-    ActivityType: "Process",
-    ToRelationship: [
-      { Target: "NODE_10", EdgeLabel: "" }
-    ]
+    L5ID: "5.4.5.11.09",
+    L5Text: "Swapping실행",
+    Level: "L5",
+    Role: "영업담당",
+    Type: "E",
+    TypeText: "SAP",
+    FromRelationship: "5.4.5.11.07",
+    ToRelationshipY: "5.4.5.13.09",
+    ToRelationshipYText: "",
+    ToRelationshipN: "",
+    ToRelationshipNText: ""
   },
   {
-    Title: "Reschedule / Allocation Review",
-    Level: 6,
-    LaneID: 4,
-    NodeID: "NODE_9",
-    ActivityType: "Process",
-    ToRelationship: [
-      { Target: "NODE_7", EdgeLabel: "" }
-    ]
+    L5ID: "5.4.5.13.09",
+    L5Text: "출하의뢰생성",
+    Level: "L5",
+    Role: "영업담당",
+    Type: "E",
+    TypeText: "SAP",
+    FromRelationship: "5.4.5.10.03",
+    ToRelationshipY: "5.4.5.13.13",
+    ToRelationshipYText: "",
+    ToRelationshipN: "",
+    ToRelationshipNText: ""
   },
   {
-    Title: "Complete Order & Archive",
-    Level: 7,
-    LaneID: 3,
-    NodeID: "NODE_10",
-    ActivityType: "Terminator",
-    ToRelationship: []
+    L5ID: "5.4.5.13.13",
+    L5Text: "포장처리",
+    Level: "L5",
+    Role: "영업담당",
+    Type: "E",
+    TypeText: "SAP",
+    FromRelationship: "5.4.5.13.09",
+    ToRelationshipY: "5.4.5.13.16",
+    ToRelationshipYText: "",
+    ToRelationshipN: "",
+    ToRelationshipNText: ""
   },
   {
-    Title: "Escalate to Manager",
-    Level: 5,
-    LaneID: 3,
-    NodeID: "NODE_11",
-    ActivityType: "Process",
-    ToRelationship: [
-      { Target: "NODE_7", EdgeLabel: "" }
-    ]
+    L5ID: "5.4.5.13.16",
+    L5Text: "출하확인",
+    Level: "L5",
+    Role: "영업담당",
+    Type: "E",
+    TypeText: "SAP",
+    FromRelationship: "5.4.5.13.13",
+    ToRelationshipY: "",
+    ToRelationshipYText: "",
+    ToRelationshipN: "",
+    ToRelationshipNText: ""
   }
 ];
