@@ -121,7 +121,7 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
   const { scale, tx, ty, handMode, magnifierMode } = useAppSelector((s) => s.canvas)
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const transformLayerRef = useRef<HTMLDivElement | null>(null)
-  
+
   const [dragging, setDragging] = useState(false)
   const lastPointerRef = useRef<{ x: number; y: number } | null>(null)
   const clickCandidateRef = useRef<{ personId: string | null; nodeId: string | null; laneId: string | null; x: number; y: number; moved: boolean }>({ personId: null, nodeId: null, laneId: null, x: 0, y: 0, moved: false })
@@ -131,7 +131,7 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
     safeDiagram.people.forEach((p) => m.set(p.id, p))
     return m
   }, [safeDiagram.people])
-  
+
   const lanesById = useMemo(() => {
     const m = new Map<string, Lane>()
     safeDiagram.lanes.forEach((l) => m.set(l.id, l))
@@ -154,10 +154,10 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
   const getClampedTranslate = (nextTx: number, nextTy: number, currentScale: number) => {
     const el = viewportRef.current
     if (!el) return { tx: nextTx, ty: nextTy }
-    
+
     const rect = el.getBoundingClientRect()
     const padding = 50
-    
+
     const scaledW = safeDiagram.canvas.width * currentScale
     let minTx, maxTx
     if (scaledW + padding * 2 < rect.width) {
@@ -198,7 +198,7 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
       const connector = 'var(--color-bg-sap-function)'
       return { id: e.id, from, to, connector, label: e.label ?? null, source: e.from || e.source, target: e.to || e.target }
     }).filter(Boolean) as any[]
-    
+
     // Detect and offset parallel/duplicate connectors
     const edgesByPair = new Map<string, any[]>()
     edgesList.forEach(edge => {
@@ -207,7 +207,7 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
       if (!edgesByPair.has(key)) edgesByPair.set(key, [])
       edgesByPair.get(key)!.push(edge)
     })
-    
+
     // Apply offset to parallel connectors
     const offsetEdges = edgesList.map(edge => {
       const key = `${edge.source}->${edge.target}`
@@ -216,7 +216,7 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
       const offset = index > 0 ? (index - (parallelEdges.length - 1) / 2) * 12 : 0
       return { ...edge, offset }
     })
-    
+
     return offsetEdges
   }, [safeDiagram.edges, nodesById])
 
@@ -284,174 +284,176 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
   }), [dispatch, scale, docHeight, safeDiagram.canvas.width])
 
   return (
-    <div
-      ref={viewportRef}
-      className={['relative h-full w-full overflow-auto bg-[var(--color-bg-body)]', 
-        magnifierMode ? 'cursor-zoom-in' : (handMode ? (dragging ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-default'),
-        className ?? ''].join(' ')}
-      style={{ touchAction: 'none' }}
-      onScroll={() => {
-        // Sync scroll position to Redux for minimap
-        const el = viewportRef.current
-        if (el) {
-          dispatch(setTranslate({ tx: -el.scrollLeft, ty: -el.scrollTop }))
-        }
-      }}
-      onWheel={(e) => {
-        if (e.ctrlKey || e.metaKey) {
-          e.preventDefault()
-          zoomAround(scale * (e.deltaY > 0 ? 0.92 : 1.08), e.clientX, e.clientY)
-        }
-        // Normal wheel: let native scroll handle it
-      }}
-      onPointerDown={(e) => {
-        if (magnifierMode) {
-          zoomAround(scale * 1.5, e.clientX, e.clientY)
-          return
-        }
-        
-        const isMiddle = e.button === 1
-        if (!handMode && !isMiddle) return
-
-        lastPointerRef.current = { x: e.clientX, y: e.clientY }
-        setDragging(true)
-        e.currentTarget.setPointerCapture(e.pointerId)
-
-        const el = e.target instanceof Element ? e.target : null
-        clickCandidateRef.current = {
-          personId: el?.closest('[data-person-id]')?.getAttribute('data-person-id') ?? null,
-          nodeId: el?.closest('[data-node-id]')?.getAttribute('data-node-id') ?? null,
-          laneId: el?.closest('[data-lane-id]')?.getAttribute('data-lane-id') ?? null,
-          x: e.clientX, y: e.clientY, moved: false
-        }
-
-        const onMove = (ev: PointerEvent) => {
-          const dx = ev.clientX - lastPointerRef.current!.x
-          const dy = ev.clientY - lastPointerRef.current!.y
-          lastPointerRef.current = { x: ev.clientX, y: ev.clientY }
-
-          if (!clickCandidateRef.current.moved && (Math.abs(dx) > 2 || Math.abs(dy) > 2)) {
-            clickCandidateRef.current.moved = true
+    <div className={['relative h-full w-full overflow-hidden', className ?? ''].join(' ')}>
+      <div
+        ref={viewportRef}
+        className={['absolute inset-0 overflow-auto bg-[var(--color-bg-body)]',
+          magnifierMode ? 'cursor-zoom-in' : (handMode ? (dragging ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-default')].join(' ')}
+        style={{ touchAction: 'none' }}
+        onScroll={() => {
+          // Sync scroll position to Redux for minimap
+          const el = viewportRef.current
+          if (el) {
+            dispatch(setTranslate({ tx: -el.scrollLeft, ty: -el.scrollTop }))
+          }
+        }}
+        onWheel={(e) => {
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault()
+            zoomAround(scale * (e.deltaY > 0 ? 0.92 : 1.08), e.clientX, e.clientY)
+          }
+          // Normal wheel: let native scroll handle it
+        }}
+        onPointerDown={(e) => {
+          if (magnifierMode) {
+            zoomAround(scale * 1.5, e.clientX, e.clientY)
+            return
           }
 
-          // Hand drag → native scroll
-          const vp = viewportRef.current
-          if (vp) {
-            vp.scrollLeft -= dx
-            vp.scrollTop -= dy
+          const isMiddle = e.button === 1
+          if (!handMode && !isMiddle) return
+
+          lastPointerRef.current = { x: e.clientX, y: e.clientY }
+          setDragging(true)
+          e.currentTarget.setPointerCapture(e.pointerId)
+
+          const el = e.target instanceof Element ? e.target : null
+          clickCandidateRef.current = {
+            personId: el?.closest('[data-person-id]')?.getAttribute('data-person-id') ?? null,
+            nodeId: el?.closest('[data-node-id]')?.getAttribute('data-node-id') ?? null,
+            laneId: el?.closest('[data-lane-id]')?.getAttribute('data-lane-id') ?? null,
+            x: e.clientX, y: e.clientY, moved: false
           }
-        }
 
-        const onUp = (ev: PointerEvent) => {
-          window.removeEventListener('pointermove', onMove)
-          window.removeEventListener('pointerup', onUp)
-          setDragging(false)
+          const onMove = (ev: PointerEvent) => {
+            const dx = ev.clientX - lastPointerRef.current!.x
+            const dy = ev.clientY - lastPointerRef.current!.y
+            lastPointerRef.current = { x: ev.clientX, y: ev.clientY }
 
-          try { e.currentTarget.releasePointerCapture(e.pointerId) } catch {}
+            if (!clickCandidateRef.current.moved && (Math.abs(dx) > 2 || Math.abs(dy) > 2)) {
+              clickCandidateRef.current.moved = true
+            }
 
-          if (ev.type === 'pointerup' && !clickCandidateRef.current.moved) {
-            const { personId, nodeId, laneId } = clickCandidateRef.current
-            if (nodeId) onNodeClick?.(nodesById.get(nodeId)!)
-            else if (personId) onPersonClick?.(peopleById.get(personId)!)
-            else if (laneId) onLaneClick?.(lanesById.get(laneId)!)
+            // Hand drag → native scroll
+            const vp = viewportRef.current
+            if (vp) {
+              vp.scrollLeft -= dx
+              vp.scrollTop -= dy
+            }
           }
-        }
 
-        window.addEventListener('pointermove', onMove)
-        window.addEventListener('pointerup', onUp)
-      }}
-    >
-      {/* Dot-grid background - fixed behind scroll */}
-      <div className="sticky inset-0 w-full h-0 pointer-events-none z-0">
-        <div className="absolute inset-0 pointer-events-none"
-          style={{
-            width: '100vw', height: '100vh',
-            backgroundImage: `
+          const onUp = (ev: PointerEvent) => {
+            window.removeEventListener('pointermove', onMove)
+            window.removeEventListener('pointerup', onUp)
+            setDragging(false)
+
+            try { e.currentTarget.releasePointerCapture(e.pointerId) } catch { }
+
+            if (ev.type === 'pointerup' && !clickCandidateRef.current.moved) {
+              const { personId, nodeId, laneId } = clickCandidateRef.current
+              if (nodeId) onNodeClick?.(nodesById.get(nodeId)!)
+              else if (personId) onPersonClick?.(peopleById.get(personId)!)
+              else if (laneId) onLaneClick?.(lanesById.get(laneId)!)
+            }
+          }
+
+          window.addEventListener('pointermove', onMove)
+          window.addEventListener('pointerup', onUp)
+        }}
+      >
+        {/* Dot-grid background - fixed behind scroll */}
+        <div className="sticky inset-0 w-full h-0 pointer-events-none z-0">
+          <div className="absolute inset-0 pointer-events-none"
+            style={{
+              width: '100vw', height: '100vh',
+              backgroundImage: `
               radial-gradient(circle, rgba(100, 116, 139, 0.5) 1.5px, transparent 1.5px),
               radial-gradient(circle at 20px 20px, rgba(100, 116, 139, 0.5) 1.5px, transparent 1.5px)
             `,
-            backgroundSize: `40px 40px`,
-            backgroundPosition: `0 0, 20px 20px`,
-          }}
-        />
-      </div>
-      <div
-        style={{ width: safeDiagram.canvas.width * scale, height: docHeight * scale, position: 'relative', flexShrink: 0 }}
-      >
-        <div
-          ref={transformLayerRef}
-          style={{ transform: `scale(${scale})`, transformOrigin: '0 0', width: safeDiagram.canvas.width, height: docHeight, position: 'absolute', left: 0, top: 0 }}
-        >
-        {safeDiagram.lanes.map((lane, idx) => (
-          <div key={`v-grid-${lane.id}`} className="pointer-events-none absolute top-0 z-0" style={{ left: idx * laneWidth, width: '3px', height: contentHeight, backgroundColor: 'var(--color-border)', opacity: 0.75 }} />
-        ))}
-        <div className="pointer-events-none absolute top-0 z-0" style={{ left: safeDiagram.lanes.length * laneWidth, width: '3px', height: contentHeight, backgroundColor: 'var(--color-border)', opacity: 0.75 }} />
-
-        <div className="absolute left-0 top-0 z-20" style={{ width: safeDiagram.canvas.width, height: headerH }}>
-          {safeDiagram.lanes.map((lane, idx) => {
-            const person = lane.personId ? peopleById.get(lane.personId) : undefined
-            return (
-              <div key={lane.id} data-person-id={person?.id ?? undefined} data-lane-id={lane.id}
-                onClick={() => !handMode && onLaneClick?.(lane)}
-                className="absolute top-0 flex items-center justify-between bg-gradient-to-b from-card to-card/80 px-4 py-3 text-left cursor-pointer hover:from-card hover:to-card/90 transition-all duration-200 border-b border-border/50"
-                style={{ left: idx * laneWidth, width: laneWidth, height: headerH, borderRight: '3px solid var(--color-border)' }}
-              >
-                <div>
-                  <div className="text-xs font-semibold text-text-primary/60 tracking-wide">{lane.title}</div>
-                  <div className="mt-1 text-sm font-bold text-primary/80">{person?.name ?? '—'}</div>
-                </div>
-                {person && <Avatar name={person.name} />}
-              </div>
-            )
-          })}
+              backgroundSize: `40px 40px`,
+              backgroundPosition: `0 0, 20px 20px`,
+            }}
+          />
         </div>
+        <div
+          style={{ width: safeDiagram.canvas.width * scale, height: docHeight * scale, position: 'relative', flexShrink: 0 }}
+        >
+          <div
+            ref={transformLayerRef}
+            style={{ transform: `scale(${scale})`, transformOrigin: '0 0', width: safeDiagram.canvas.width, height: docHeight, position: 'absolute', left: 0, top: 0 }}
+          >
+            {safeDiagram.lanes.map((lane, idx) => (
+              <div key={`v-grid-${lane.id}`} className="pointer-events-none absolute top-0 z-0" style={{ left: idx * laneWidth, width: '3px', height: contentHeight, backgroundColor: 'var(--color-border)', opacity: 0.75 }} />
+            ))}
+            <div className="pointer-events-none absolute top-0 z-0" style={{ left: safeDiagram.lanes.length * laneWidth, width: '3px', height: contentHeight, backgroundColor: 'var(--color-border)', opacity: 0.75 }} />
 
-        <svg className="pointer-events-none absolute inset-0 z-0" width={safeDiagram.canvas.width} height={docHeight}>
-          <defs>
-            <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
-              <polygon points="0 0, 10 3, 0 6" fill="var(--color-bg-sap-function)" />
-            </marker>
-          </defs>
-          {edges.map((e) => {
-            const midX = (e.from.x + e.to.x) / 2
-            const vGap = Math.abs(e.to.y - e.from.y)
-            const bendY = e.from.y + vGap / 2
-            const isGoingRight = e.to.x >= e.from.x
-            const labelX = isGoingRight ? midX + 40 : midX - 40
-            const labelY = bendY - 15
-            const offset = (e.offset || 0)
-            const bendXOffset = midX + offset
-            
-            return (
-              <g key={e.id}>
-                {/* Connector path with offset for parallel edges */}
-                <path d={`M ${e.from.x} ${e.from.y} L ${bendXOffset} ${e.from.y} L ${bendXOffset} ${e.to.y} L ${e.to.x} ${e.to.y}`}
-                  stroke={e.connector} strokeWidth={2} fill="none" strokeOpacity={0.85} strokeLinecap="round" strokeLinejoin="round" markerEnd="url(#arrowhead)" />
-                {/* Dot at source (departure from node) */}
-                <circle cx={e.from.x} cy={e.from.y} r={3.5} fill={e.connector} opacity={0.9} />
-                {/* Dot at target (arrival at node) */}
-                <circle cx={e.to.x} cy={e.to.y} r={3.5} fill={e.connector} opacity={0.9} />
-                {/* Label positioned to the SIDE based on connector direction */}
-                {e.label && (
-                  <text x={labelX} y={labelY} textAnchor={isGoingRight ? 'start' : 'end'} fontSize={11} fill="var(--color-text-primary)" fontWeight={600}
-                    style={{ pointerEvents: 'none' }}>
-                    {e.label}
-                  </text>
-                )}
-              </g>
-            )
-          })}
-        </svg>
-        {positionedNodes.map((n) => <Node key={n.id} n={n} />)}
-        </div>{/* close transform layer */}
-      </div>{/* close sizer */}
-      <MiniMap 
-        diagram={safeDiagram} 
-        docHeight={docHeight} 
-        viewportRef={viewportRef} 
-        scale={scale} 
-        tx={tx} 
-        ty={ty} 
+            <div className="absolute left-0 top-0 z-20" style={{ width: safeDiagram.canvas.width, height: headerH }}>
+              {safeDiagram.lanes.map((lane, idx) => {
+                const person = lane.personId ? peopleById.get(lane.personId) : undefined
+                return (
+                  <div key={lane.id} data-person-id={person?.id ?? undefined} data-lane-id={lane.id}
+                    onClick={() => !handMode && onLaneClick?.(lane)}
+                    className="absolute top-0 flex items-center justify-between bg-gradient-to-b from-card to-card/80 px-4 py-3 text-left cursor-pointer hover:from-card hover:to-card/90 transition-all duration-200 border-b border-border/50"
+                    style={{ left: idx * laneWidth, width: laneWidth, height: headerH, borderRight: '3px solid var(--color-border)' }}
+                  >
+                    <div>
+                      <div className="text-xs font-semibold text-text-primary/60 tracking-wide">{lane.title}</div>
+                      <div className="mt-1 text-sm font-bold text-primary/80">{person?.name ?? '—'}</div>
+                    </div>
+                    {person && <Avatar name={person.name} />}
+                  </div>
+                )
+              })}
+            </div>
+
+            <svg className="pointer-events-none absolute inset-0 z-0" width={safeDiagram.canvas.width} height={docHeight}>
+              <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                  <polygon points="0 0, 10 3, 0 6" fill="var(--color-bg-sap-function)" />
+                </marker>
+              </defs>
+              {edges.map((e) => {
+                const midX = (e.from.x + e.to.x) / 2
+                const vGap = Math.abs(e.to.y - e.from.y)
+                const bendY = e.from.y + vGap / 2
+                const isGoingRight = e.to.x >= e.from.x
+                const labelX = isGoingRight ? midX + 40 : midX - 40
+                const labelY = bendY - 15
+                const offset = (e.offset || 0)
+                const bendXOffset = midX + offset
+
+                return (
+                  <g key={e.id}>
+                    {/* Connector path with offset for parallel edges */}
+                    <path d={`M ${e.from.x} ${e.from.y} L ${bendXOffset} ${e.from.y} L ${bendXOffset} ${e.to.y} L ${e.to.x} ${e.to.y}`}
+                      stroke={e.connector} strokeWidth={2} fill="none" strokeOpacity={0.85} strokeLinecap="round" strokeLinejoin="round" markerEnd="url(#arrowhead)" />
+                    {/* Dot at source (departure from node) */}
+                    <circle cx={e.from.x} cy={e.from.y} r={3.5} fill={e.connector} opacity={0.9} />
+                    {/* Dot at target (arrival at node) */}
+                    <circle cx={e.to.x} cy={e.to.y} r={3.5} fill={e.connector} opacity={0.9} />
+                    {/* Label positioned to the SIDE based on connector direction */}
+                    {e.label && (
+                      <text x={labelX} y={labelY} textAnchor={isGoingRight ? 'start' : 'end'} fontSize={11} fill="var(--color-text-primary)" fontWeight={600}
+                        style={{ pointerEvents: 'none' }}>
+                        {e.label}
+                      </text>
+                    )}
+                  </g>
+                )
+              })}
+            </svg>
+            {positionedNodes.map((n) => <Node key={n.id} n={n} />)}
+          </div>{/* close transform layer */}
+        </div>{/* close sizer */}
+
+      </div>
+      <MiniMap
+        diagram={safeDiagram}
+        docHeight={docHeight}
+        viewportRef={viewportRef}
+        scale={scale}
+        tx={tx}
+        ty={ty}
         onJump={(next) => {
           const vp = viewportRef.current
           if (vp) {
@@ -485,6 +487,12 @@ function MiniMap({ diagram, docHeight, viewportRef, scale, tx, ty, onJump, posit
   const s = Math.min(miniWidth / safeCanvasW, miniHeight / docHeight)
   const [isDragging, setIsDragging] = useState(false)
 
+  // Dragging state for the minimap container itself
+  const [customPos, setCustomPos] = useState<{ x: number; y: number } | null>(null)
+  const [isDraggingMinimap, setIsDraggingMinimap] = useState(false)
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+  const minimapContainerRef = useRef<HTMLDivElement>(null)
+
   const updateJump = (e: React.PointerEvent) => {
     const rect = e.currentTarget.getBoundingClientRect()
     // Convert minimap click to world coordinates, then to scroll position
@@ -497,14 +505,68 @@ function MiniMap({ diagram, docHeight, viewportRef, scale, tx, ty, onJump, posit
     vp.scrollTop = worldY * scale - vp.clientHeight / 2
   }
 
+  const handleMinimapDragStart = (e: React.PointerEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest('.minimap-canvas')) return
+    e.stopPropagation()
+    const container = minimapContainerRef.current?.parentElement
+    if (!container || !minimapContainerRef.current) return
+
+    if (!customPos) {
+      const rect = minimapContainerRef.current.getBoundingClientRect()
+      const parentRect = container.getBoundingClientRect()
+      const startX = rect.left - parentRect.left
+      const startY = rect.top - parentRect.top
+      setCustomPos({ x: startX, y: startY })
+      setDragStart({ x: e.clientX - startX, y: e.clientY - startY })
+    } else {
+      setDragStart({ x: e.clientX - customPos.x, y: e.clientY - customPos.y })
+    }
+
+    setIsDraggingMinimap(true)
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+
+  const handleMinimapDragMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDraggingMinimap || !minimapContainerRef.current || !minimapContainerRef.current.parentElement) return
+    const parentRect = minimapContainerRef.current.parentElement.getBoundingClientRect()
+    const mmRect = minimapContainerRef.current.getBoundingClientRect()
+
+    let newX = e.clientX - dragStart.x
+    let newY = e.clientY - dragStart.y
+
+    newX = Math.max(0, Math.min(parentRect.width - mmRect.width, newX))
+    newY = Math.max(0, Math.min(parentRect.height - mmRect.height, newY))
+
+    setCustomPos({ x: newX, y: newY })
+  }
+
+  const handleMinimapDragEnd = (e: React.PointerEvent<HTMLDivElement>) => {
+    setIsDraggingMinimap(false)
+    e.currentTarget.releasePointerCapture(e.pointerId)
+  }
+
   // Derive scroll position from tx/ty (tx = -scrollLeft, ty = -scrollTop)
   const scrollLeft = -tx
   const scrollTop = -ty
 
+  const positionStyle: React.CSSProperties = customPos
+    ? { left: customPos.x, top: customPos.y, cursor: isDraggingMinimap ? 'grabbing' : 'grab' }
+    : { right: 16, bottom: 16, cursor: 'grab' }
+
   return (
-    <div 
-      className="pointer-events-auto sticky z-50 rounded-md border border-border bg-card shadow-md p-2"
-      style={{ bottom: 16, left: 'calc(100% - 240px)', marginTop: -180, float: 'right' }}
+    <div
+      ref={minimapContainerRef}
+      className="pointer-events-auto absolute z-50 rounded-md border border-border bg-card shadow-md p-2"
+      style={positionStyle}
+      onPointerDown={handleMinimapDragStart}
+      onPointerMove={handleMinimapDragMove}
+      onPointerUp={handleMinimapDragEnd}
+      onPointerLeave={(e) => {
+        if (isDraggingMinimap) {
+          setIsDraggingMinimap(false)
+          e.currentTarget.releasePointerCapture(e.pointerId)
+        }
+      }}
     >
       <div className="text-xs font-semibold mb-2 text-text-primary/70">Mini Map</div>
       <div className="minimap-canvas relative overflow-hidden rounded-sm border border-border/50 bg-[var(--color-bg-body)]"
@@ -514,7 +576,7 @@ function MiniMap({ diagram, docHeight, viewportRef, scale, tx, ty, onJump, posit
         onPointerUp={(e) => { setIsDragging(false); e.currentTarget.releasePointerCapture(e.pointerId); }}
       >
         <div className="absolute inset-0 pointer-events-none opacity-15 bg-primary/10" />
-        
+
         <div className="absolute inset-0 pointer-events-none">
           <svg width="100%" height="100%" viewBox={`0 0 ${safeCanvasW} ${docHeight}`}>
             {edges.map((e) => {
