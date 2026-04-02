@@ -27,6 +27,7 @@ export interface FlowchartNode {
   ToRelationshipYText: string;// Edge label for Y path
   ToRelationshipN: string;    // L5 ID of No/reject outgoing target
   ToRelationshipNText: string;// Edge label for N path
+  Lvl?: number;               // Explicit node placement level
 }
 
 export interface RoadmapLane {

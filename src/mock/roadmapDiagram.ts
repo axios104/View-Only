@@ -13,7 +13,8 @@ export const mockRawData: FlowchartNode[] = [
     ToRelationshipY: "5.4.5.14.02",
     ToRelationshipYText: "",
     ToRelationshipN: "",
-    ToRelationshipNText: ""
+    ToRelationshipNText: "",
+    Lvl: 1
   },
   {
     L5ID: "5.4.5.14.02",
@@ -26,7 +27,8 @@ export const mockRawData: FlowchartNode[] = [
     ToRelationshipY: "5.4.5.14.03",
     ToRelationshipYText: "",
     ToRelationshipN: "",
-    ToRelationshipNText: ""
+    ToRelationshipNText: "",
+    Lvl: 2
   },
   {
     L5ID: "5.4.5.14.03",
@@ -39,7 +41,8 @@ export const mockRawData: FlowchartNode[] = [
     ToRelationshipY: "5.4.5.14.01",
     ToRelationshipYText: "",
     ToRelationshipN: "",
-    ToRelationshipNText: ""
+    ToRelationshipNText: "",
+    Lvl: 3
   },
   {
     L5ID: "5.4.5.14.01",
@@ -52,7 +55,8 @@ export const mockRawData: FlowchartNode[] = [
     ToRelationshipY: "5.4.5.10.04",
     ToRelationshipYText: "",
     ToRelationshipN: "",
-    ToRelationshipNText: ""
+    ToRelationshipNText: "",
+    Lvl: 4
   },
   {
     L5ID: "5.4.5.10.04",
@@ -65,7 +69,8 @@ export const mockRawData: FlowchartNode[] = [
     ToRelationshipY: "5.4.5.10.03",
     ToRelationshipYText: "Y",
     ToRelationshipN: "5.4.5.11.07",
-    ToRelationshipNText: "N"
+    ToRelationshipNText: "N",
+    Lvl: 5
   },
   {
     L5ID: "5.4.5.10.03",
@@ -78,7 +83,8 @@ export const mockRawData: FlowchartNode[] = [
     ToRelationshipY: "5.4.5.13.09",
     ToRelationshipYText: "",
     ToRelationshipN: "",
-    ToRelationshipNText: ""
+    ToRelationshipNText: "",
+    Lvl: 6
   },
   {
     L5ID: "5.4.5.11.07",
@@ -91,7 +97,8 @@ export const mockRawData: FlowchartNode[] = [
     ToRelationshipY: "5.4.5.11.09",
     ToRelationshipYText: "",
     ToRelationshipN: "",
-    ToRelationshipNText: ""
+    ToRelationshipNText: "",
+    Lvl: 6
   },
   {
     L5ID: "5.4.5.11.09",
@@ -104,7 +111,8 @@ export const mockRawData: FlowchartNode[] = [
     ToRelationshipY: "5.4.5.13.09",
     ToRelationshipYText: "",
     ToRelationshipN: "",
-    ToRelationshipNText: ""
+    ToRelationshipNText: "",
+    Lvl: 7
   },
   {
     L5ID: "5.4.5.13.09",
@@ -117,7 +125,8 @@ export const mockRawData: FlowchartNode[] = [
     ToRelationshipY: "5.4.5.13.13",
     ToRelationshipYText: "",
     ToRelationshipN: "",
-    ToRelationshipNText: ""
+    ToRelationshipNText: "",
+    Lvl: 8
   },
   {
     L5ID: "5.4.5.13.13",
@@ -130,7 +139,8 @@ export const mockRawData: FlowchartNode[] = [
     ToRelationshipY: "5.4.5.13.16",
     ToRelationshipYText: "",
     ToRelationshipN: "",
-    ToRelationshipNText: ""
+    ToRelationshipNText: "",
+    Lvl: 9
   },
   {
     L5ID: "5.4.5.13.16",
@@ -143,6 +153,7 @@ export const mockRawData: FlowchartNode[] = [
     ToRelationshipY: "",
     ToRelationshipYText: "",
     ToRelationshipN: "",
-    ToRelationshipNText: ""
+    ToRelationshipNText: "",
+    Lvl: 10
   }
 ];

@@ -89,7 +89,7 @@ function transformFlowchartNodesToDiagram(nodes: FlowchartNode[]): RoadmapDiagra
   nodes.forEach(n => {
     const role = n.Role;
     const laneId = roleToLaneId.get(role)!;
-    const level = levelOf.get(n.L5ID) ?? 0;
+    const level = n.Lvl !== undefined ? n.Lvl : (levelOf.get(n.L5ID) ?? 0);
 
     // Determine visual type
     let nodeType: string = 'process';
