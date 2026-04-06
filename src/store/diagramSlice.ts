@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk, type PayloadAction } from '@reduxjs/toolkit'
-import type { RoadmapDiagram, RoadmapNode, RoadmapEdge } from '../types/roadmap'
+import type { RoadmapDiagram, RoadmapNode, RoadmapEdge, RoadmapLane } from '../types/roadmap'
 import { getRoadmapDiagram } from '../services/roadmapApi'
 
 export type DiagramState = {
@@ -107,6 +107,62 @@ const diagramSlice = createSlice({
         }
       }
     },
+    // --- Lane Management ---
+    addLane(state, action: PayloadAction<{ lane: RoadmapLane }>) {
+      saveHistory(state)
+      if (state.data) state.data.lanes.push(action.payload.lane)
+    },
+    removeLane(state, action: PayloadAction<string>) {
+      saveHistory(state)
+      if (state.data) {
+        state.data.lanes = state.data.lanes.filter(l => l.id !== action.payload)
+        const nodesToRemove = state.data.nodes.filter(n => n.laneId === action.payload).map(n => n.id)
+        state.data.nodes = state.data.nodes.filter(n => !nodesToRemove.includes(n.id))
+        state.data.edges = state.data.edges.filter(e =>
+          !nodesToRemove.includes(e.source || e.from || '') &&
+          !nodesToRemove.includes(e.target || e.to || '')
+        )
+      }
+    },
+    updateLane(state, action: PayloadAction<{ id: string, title: string, personId?: string, department?: string }>) {
+      saveHistory(state)
+      if (state.data) {
+        const lane = state.data.lanes.find(l => l.id === action.payload.id)
+        if (lane) {
+          lane.title = action.payload.title
+          if (action.payload.personId !== undefined) lane.personId = action.payload.personId
+          // @ts-ignore - Dynamically adding department if it doesn't exist on type
+          if (action.payload.department !== undefined) lane.department = action.payload.department
+        }
+      }
+    },
+    // --- Node Full Details Management ---
+    updateNodeInfo(state, action: PayloadAction<{
+      id: string, label: string, description?: string,
+      tCode?: string, manual?: string, output?: string,
+      createPerson?: string, changePerson?: string
+    }>) {
+      saveHistory(state)
+      if (state.data) {
+        const node = state.data.nodes.find(n => n.id === action.payload.id)
+        if (node) {
+          node.label = action.payload.label
+          node.title = action.payload.label
+          node.description = action.payload.description
+
+          // @ts-ignore - Adding extended details dynamically
+          node.tCode = action.payload.tCode
+          // @ts-ignore
+          node.manual = action.payload.manual
+          // @ts-ignore
+          node.output = action.payload.output
+          // @ts-ignore
+          node.createPerson = action.payload.createPerson
+          // @ts-ignore
+          node.changePerson = action.payload.changePerson
+        }
+      }
+    },
     undo(state) {
       if (state.past.length > 0 && state.data) {
         const previous = state.past.pop()
@@ -140,5 +196,9 @@ const diagramSlice = createSlice({
   },
 })
 
-export const { addNode, removeNode, updateNodeCoords, addEdge, removeEdge, updateNodeStyle, updateNodeLabel, undo, redo } = diagramSlice.actions
+export const {
+  addNode, removeNode, updateNodeCoords, addEdge, removeEdge, updateNodeStyle, updateNodeLabel,
+  undo, redo, addLane, removeLane, updateLane, updateNodeInfo
+} = diagramSlice.actions
+
 export const diagramReducer = diagramSlice.reducer

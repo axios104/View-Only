@@ -1,13 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAppSelector, useAppDispatch } from '../store/hooks'
 import { setHandMode, setMagnifierMode, setMode, setSelectedEditNodeId, setSelectedEditEdgeId, setPendingAddType } from '../store/canvasSlice'
-import { fetchDiagram, addNode, removeNode, removeEdge, updateNodeStyle, updateNodeLabel, undo, redo } from '../store/diagramSlice'
+import { fetchDiagram, addNode, removeNode, removeEdge, updateNodeLabel, undo, redo, addLane, removeLane, updateLane, updateNodeInfo } from '../store/diagramSlice'
 import { getNodeDetails, saveRoadmapDiagram } from '../services/roadmapApi'
 import type { Person, Lane, NodeDetails, RoadmapDiagram } from '../types/roadmap'
 import { Modal } from './Modal'
 import { ProcessCanvas, type ProcessCanvasApi } from './ProcessCanvas'
 import { layoutRoadmapNodes, type PositionedRoadmapNode } from '../layout/layoutRoadmap'
-import { Eye, Edit2, Hand, Search, RefreshCw, Save, Trash2, Maximize, Minus, Plus } from 'lucide-react'
+import { Eye, Edit2, Hand, Search, RefreshCw, Save, Trash2, Maximize, Minus, Plus, Columns } from 'lucide-react'
+
+// Extended types for local editing state
+type EditableNodeData = PositionedRoadmapNode & {
+  description?: string; tCode?: string; manual?: string;
+  output?: string; createPerson?: string; changePerson?: string;
+}
+type EditableLaneData = Lane & { personId?: string; department?: string; }
 
 export function RoadmapView() {
   const dispatch = useAppDispatch()
@@ -15,23 +22,25 @@ export function RoadmapView() {
 
   // Modals state
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null)
-  const [selectedNode, setSelectedNode] = useState<PositionedRoadmapNode | null>(null)
+  const [selectedNode, setSelectedNode] = useState<EditableNodeData | null>(null)
   const [selectedNodeDetails, setSelectedNodeDetails] = useState<NodeDetails | null>(null)
   const [nodeDetailsLoading, setNodeDetailsLoading] = useState(false)
-  const [selectedLane, setSelectedLane] = useState<Lane | null>(null)
+  const [selectedLane, setSelectedLane] = useState<EditableLaneData | null>(null)
+
+  // Editable modals state
+  const [editingLane, setEditingLane] = useState<EditableLaneData | null>(null)
+  const [editingNode, setEditingNode] = useState<EditableNodeData | null>(null)
 
   const { activeTab } = useAppSelector((s) => s.ui)
-  const { handMode, magnifierMode, mode, selectedEditNodeId, selectedEditEdgeId, pendingAddType } = useAppSelector((s) => s.canvas)
+  const { handMode, magnifierMode, mode, selectedEditNodeId, selectedEditEdgeId } = useAppSelector((s) => s.canvas)
   const { data: diagram, loading, error } = useAppSelector((s) => s.diagram)
 
-  // Use the Redux UI state from the Tabs to force admin layout securely
   const isAdmin = activeTab === 'Model Edit';
 
   useEffect(() => {
     dispatch(fetchDiagram())
   }, [dispatch])
 
-  // Automatically enforce the 'mode' for Redux based entirely on the URL router
   useEffect(() => {
     if (isAdmin) {
       dispatch(setMode('edit'))
@@ -42,7 +51,6 @@ export function RoadmapView() {
     }
   }, [isAdmin, dispatch])
 
-  // Fetch node details when a node is clicked
   const handleNodeClick = async (node: PositionedRoadmapNode) => {
     if (mode === 'edit') {
       dispatch(setSelectedEditNodeId(node.id))
@@ -51,10 +59,10 @@ export function RoadmapView() {
 
     if (mode === 'none') return;
 
-
-    setSelectedNode(node)
+    setSelectedNode(node as EditableNodeData)
     setNodeDetailsLoading(true)
     try {
+      // Fetch details and merge with existing node data if present
       const details = await getNodeDetails(node.id)
       setSelectedNodeDetails(details)
     } catch (err) {
@@ -65,9 +73,25 @@ export function RoadmapView() {
     }
   }
 
+  const handleLaneClick = (lane: Lane) => {
+    if (mode === 'edit') {
+      setEditingLane(lane as EditableLaneData)
+    } else {
+      setSelectedLane(lane as EditableLaneData)
+    }
+  }
+
   const closeNodeModal = () => {
     setSelectedNode(null)
     setSelectedNodeDetails(null)
+  }
+
+  const handleAddLane = () => {
+    if (!diagram) return;
+    const newLaneId = `lane-${Date.now()}`
+    dispatch(addLane({
+      lane: { id: newLaneId, title: 'New Lane', order: diagram.lanes.length }
+    }))
   }
 
   const handleSave = async () => {
@@ -75,7 +99,7 @@ export function RoadmapView() {
       const diagramWidth = diagram.canvas?.width || 2000
       const laneWidth = diagram.lanes.length > 0 ? diagramWidth / diagram.lanes.length : diagramWidth
       const layoutNodes = layoutRoadmapNodes(diagram, { laneWidth, headerH: 64, rowGap: 90 })
-      
+
       const updatedNodes = diagram.nodes.map(n => {
         const layoutNode = layoutNodes.find(ln => ln.id === n.id)
         if (layoutNode && (n.posX === undefined || n.posY === undefined)) {
@@ -85,38 +109,44 @@ export function RoadmapView() {
       })
 
       const approvedDiagram: RoadmapDiagram = { ...diagram, nodes: updatedNodes, isApproved: true }
-      await saveRoadmapDiagram(approvedDiagram)
-      dispatch(fetchDiagram())
-      alert('Diagram saved successfully!')
+
+      try {
+        await saveRoadmapDiagram(approvedDiagram) // API Call
+        dispatch(fetchDiagram()) // Refresh from DB
+        alert('Diagram saved successfully via API!')
+      } catch (err) {
+        alert('Error saving diagram!')
+        console.error(err)
+      }
     }
   }
 
   const handleDropNode = (type: string, worldX: number, worldY: number) => {
     if (mode === 'edit') {
       if (!diagram || diagram.lanes.length === 0) return
-      
+
       const headerH = 64
       const rowGap = 90
       const diagramWidth = diagram.canvas?.width || 2000
       const laneWidth = diagramWidth / Math.max(1, diagram.lanes.length)
-      
+
       const laneIdx = Math.max(0, Math.min(diagram.lanes.length - 1, Math.floor(worldX / laneWidth)))
       const laneId = diagram.lanes[laneIdx].id
-      
+
       const level = Math.max(0, Math.round((worldY - headerH) / rowGap))
-      
+
       const id = `new-node-${Date.now()}`
-      dispatch(addNode({ 
-        node: { 
-          id, 
-          title: 'New Node', 
-          type: type as any, 
-          laneId, 
+      dispatch(addNode({
+        node: {
+          id,
+          title: 'New Node',
+          type: type as any,
+          laneId,
           level,
           label: 'New Node',
           posX: worldX,
           posY: worldY
-        } 
+        }
       }))
       dispatch(setSelectedEditNodeId(id))
     }
@@ -140,32 +170,15 @@ export function RoadmapView() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger if user is typing in an input field
-      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
-        return;
-      }
+      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
 
-      // Undo / Redo
-      if (isAdmin && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
-        e.preventDefault();
-        dispatch(undo());
-        return;
-      }
-      if (isAdmin && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
-        e.preventDefault();
-        dispatch(redo());
-        return;
-      }
+      if (isAdmin && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); dispatch(undo()); return; }
+      if (isAdmin && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); dispatch(redo()); return; }
 
-      // Deletion
       if (isAdmin && (e.key === 'Backspace' || e.key === 'Delete')) {
-        if (selectedEditNodeId || selectedEditEdgeId) {
-          e.preventDefault();
-          handleDeleteNode();
-        }
+        if (selectedEditNodeId || selectedEditEdgeId) { e.preventDefault(); handleDeleteNode(); }
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [dispatch, selectedEditNodeId, selectedEditEdgeId, isAdmin]);
@@ -178,12 +191,12 @@ export function RoadmapView() {
           <div className="absolute right-8 top-6 z-20 flex items-center gap-4 pointer-events-none">
             <div className={`px-4 py-1.5 rounded-full text-xs font-bold border shadow-md flex items-center gap-1.5 backdrop-blur-sm ${diagram.isApproved ? 'bg-emerald-50 text-emerald-700 border-emerald-200/60' : 'bg-amber-50 text-amber-700 border-amber-200/60'}`}>
               <span className="text-base leading-none">{diagram.isApproved ? '✓' : '⚠️'}</span>
-              {diagram.isApproved ? 'Admin Approved' : 'Not Approved (Excel)'}
+              {diagram.isApproved ? 'Admin Approved' : 'Not Approved'}
             </div>
           </div>
         )}
         <div className="absolute left-6 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-2 rounded-[2rem] border border-[var(--color-border)] bg-[var(--color-bg-card)]/90 backdrop-blur-md p-2 shadow-sm w-12">
-          {/* Mode Toggles */}
+
           <button
             type="button"
             onClick={() => { dispatch(setMode('view')); dispatch(setSelectedEditNodeId(null)); }}
@@ -192,7 +205,7 @@ export function RoadmapView() {
           >
             <Eye size={18} />
           </button>
-          
+
           {isAdmin && (
             <button
               type="button"
@@ -206,7 +219,6 @@ export function RoadmapView() {
 
           <div className="h-[1px] w-6 bg-border my-[2px]" />
 
-          {/* Contextual Tools based on Mode */}
           {mode === 'edit' ? (
             <>
               <button
@@ -235,10 +247,17 @@ export function RoadmapView() {
               </button>
               <div className="h-[1px] w-6 bg-border my-[2px]" />
               <button
+                onClick={handleAddLane}
+                className="grid size-8 place-items-center rounded-md border border-transparent text-[#2c3e50] hover:border-border hover:bg-btn"
+                title="Add New Lane"
+              >
+                <Columns size={16} />
+              </button>
+              <button
                 onClick={handleDeleteNode}
                 disabled={!selectedEditNodeId && !selectedEditEdgeId}
                 className="grid size-8 place-items-center rounded-md border border-transparent text-red-500 hover:border-red-100 hover:bg-red-50 disabled:opacity-40"
-                title="Delete Selected"
+                title="Delete Selected Node/Edge"
               >
                 <Trash2 size={16} />
               </button>
@@ -281,46 +300,33 @@ export function RoadmapView() {
           )}
 
           <div className="h-[1px] w-6 bg-border my-[2px]" />
-          
-          {/* Universal Zoom Controls */}
-          <button
-            onClick={() => canvasRef.current?.zoomOut()}
-            className="grid size-8 place-items-center rounded-md border border-transparent text-[#2c3e50] hover:border-border hover:bg-btn"
-            title="Zoom Out"
-          >
-            <Minus size={18} />
-          </button>
-          <button
-            onClick={() => canvasRef.current?.reset()}
-            className="grid size-8 place-items-center rounded-md border border-transparent text-[#2c3e50] hover:border-border hover:bg-btn"
-            title="Fit Screen"
-          >
-            <Maximize size={16} />
-          </button>
-          <button
-            onClick={() => canvasRef.current?.zoomIn()}
-            className="grid size-8 place-items-center rounded-md border border-transparent text-[#2c3e50] hover:border-border hover:bg-btn"
-            title="Zoom In"
-          >
-            <Plus size={18} />
-          </button>
+
+          <button onClick={() => canvasRef.current?.zoomOut()} className="grid size-8 place-items-center rounded-md border border-transparent text-[#2c3e50] hover:border-border hover:bg-btn" title="Zoom Out"><Minus size={18} /></button>
+          <button onClick={() => canvasRef.current?.reset()} className="grid size-8 place-items-center rounded-md border border-transparent text-[#2c3e50] hover:border-border hover:bg-btn" title="Fit Screen"><Maximize size={16} /></button>
+          <button onClick={() => canvasRef.current?.zoomIn()} className="grid size-8 place-items-center rounded-md border border-transparent text-[#2c3e50] hover:border-border hover:bg-btn" title="Zoom In"><Plus size={18} /></button>
         </div>
 
         {mode === 'edit' && selectedEditNodeId && diagram?.nodes.find(n => n.id === selectedEditNodeId) && (() => {
-              const nd = diagram.nodes.find(n => n.id === selectedEditNodeId)!;
-              return (
-                <div className="absolute top-16 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 rounded-md border border-border bg-card p-2 shadow-md">
-                  <span className="text-xs font-semibold text-text-primary px-1">Editing:</span>
-                  <input 
-                    type="text" 
-                    value={nd.label || ''} 
-                    onChange={(e) => dispatch(updateNodeLabel({ id: selectedEditNodeId, label: e.target.value }))}
-                    className="text-xs border border-border bg-[var(--color-bg-body)] text-text-primary rounded px-2 py-1 w-40"
-                    placeholder="Node Label"
-                  />
-                </div>
-              )
-            })()}
+          const nd = diagram.nodes.find(n => n.id === selectedEditNodeId)!;
+          return (
+            <div className="absolute top-16 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 rounded-md border border-border bg-white p-2 shadow-lg">
+              <span className="text-xs font-semibold text-text-primary px-1">Editing:</span>
+              <input
+                type="text"
+                value={nd.label || ''}
+                onChange={(e) => dispatch(updateNodeLabel({ id: selectedEditNodeId, label: e.target.value }))}
+                className="text-sm border border-slate-200 bg-slate-50 text-slate-800 rounded px-2 py-1.5 w-48 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Node Label"
+              />
+              <button
+                onClick={() => setEditingNode(nd as EditableNodeData)}
+                className="ml-2 text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 rounded px-3 py-1.5 transition-colors"
+              >
+                Edit Full Details
+              </button>
+            </div>
+          )
+        })()}
 
         {diagram ? (
           <ProcessCanvas
@@ -328,7 +334,7 @@ export function RoadmapView() {
             diagram={diagram}
             onPersonClick={(p) => setSelectedPerson(p)}
             onNodeClick={handleNodeClick}
-            onLaneClick={(l) => setSelectedLane(l)}
+            onLaneClick={handleLaneClick}
             onBackgroundClick={handleBackgroundClick}
             onDropNode={handleDropNode}
           />
@@ -339,12 +345,6 @@ export function RoadmapView() {
             <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-6 py-5 text-sm text-red-600">
               <div className="font-semibold">Error loading diagram</div>
               <div className="mt-1">{error}</div>
-              <button
-                onClick={() => dispatch(fetchDiagram())}
-                className="mt-3 px-3 py-1 bg-red-600 text-white rounded text-xs font-semibold hover:bg-red-700"
-              >
-                Try Again
-              </button>
             </div>
           </div>
         ) : (
@@ -352,125 +352,180 @@ export function RoadmapView() {
         )}
       </section>
 
-      {/* User / Person Modal */}
-      <Modal title={selectedPerson?.name ?? 'User details'} open={!!selectedPerson} onClose={() => setSelectedPerson(null)}>
-        {selectedPerson && (
-          <div className="space-y-2">
-            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-text-primary/70">Role</div><div className="col-span-2 font-semibold">{selectedPerson.role}</div></div>
-            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-text-primary/70">Email</div><div className="col-span-2 font-semibold">{selectedPerson.email}</div></div>
-            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-text-primary/70">Team</div><div className="col-span-2 font-semibold">{selectedPerson.team}</div></div>
-            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-text-primary/70">Location</div><div className="col-span-2 font-semibold">{selectedPerson.location}</div></div>
-          </div>
-        )}
-      </Modal>
 
-      {/* Node Component Modal */}
+      {/* --- VIEW-ONLY NODE MODAL --- */}
       <Modal title="Process Step Details" open={!!selectedNode} onClose={closeNodeModal}>
-        {nodeDetailsLoading ? (
-          <div className="flex items-center justify-center py-6">
-            <div className="text-sm text-text-primary/70">Loading node details…</div>
-          </div>
-        ) : selectedNodeDetails ? (
-          <div className="space-y-3">
-            <div className="grid grid-cols-3 gap-2">
-              <div className="text-xs text-text-primary/70">Node ID</div>
-              <div className="col-span-2 font-semibold text-sm">{selectedNodeDetails.NodeID}</div>
+        <div className="bg-white p-1 text-slate-900 rounded-md">
+          {nodeDetailsLoading ? (
+            <div className="flex items-center justify-center py-6">
+              <div className="text-sm text-slate-500">Loading node details…</div>
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              <div className="text-xs text-text-primary/70">Type</div>
-              <div className="col-span-2">
-                <span className="inline-block bg-primary/10 text-primary px-2 py-1 rounded text-xs font-semibold uppercase">
-                  {selectedNodeDetails.Type}
-                </span>
+          ) : selectedNode ? (
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-2">
+                <div className="text-xs text-slate-500">ID</div>
+                <div className="col-span-2 font-semibold text-sm">{selectedNode.id}</div>
               </div>
-            </div>
-            {selectedNodeDetails.Description && (
-              <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border">
-                <div className="text-xs text-text-primary/70">Description</div>
-                <div className="col-span-2 text-sm text-text-primary/80 whitespace-pre-wrap">
-                  {selectedNodeDetails.Description}
-                </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="text-xs text-slate-500">Type</div>
+                <div className="col-span-2"><span className="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-semibold uppercase">{selectedNode.type || selectedNodeDetails?.Type || 'PROCESS'}</span></div>
               </div>
-            )}
-            <div className="pt-2 border-t border-border space-y-2">
-              {selectedNodeDetails.CreateDate && (
-                <div className="grid grid-cols-3 gap-2 text-xs">
-                  <div className="text-text-primary/70">Created</div>
-                  <div className="col-span-2 font-medium">{selectedNodeDetails.CreateDate}</div>
+              <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100">
+                <div className="text-xs text-slate-500">Label</div>
+                <div className="col-span-2 font-semibold whitespace-pre-wrap">{selectedNode.label}</div>
+              </div>
+              {(selectedNode.description || selectedNodeDetails?.Description) && (
+                <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100">
+                  <div className="text-xs text-slate-500">Description</div>
+                  <div className="col-span-2 text-sm text-slate-700 whitespace-pre-wrap">{selectedNode.description || selectedNodeDetails?.Description}</div>
                 </div>
               )}
-              {selectedNodeDetails.ChangeDate && (
-                <div className="grid grid-cols-3 gap-2 text-xs">
-                  <div className="text-text-primary/70">Changed</div>
-                  <div className="col-span-2 font-medium">{selectedNodeDetails.ChangeDate}</div>
-                </div>
-              )}
-              {selectedNodeDetails.CreatePerson && (
-                <div className="grid grid-cols-3 gap-2 text-xs">
-                  <div className="text-text-primary/70">Created By</div>
-                  <div className="col-span-2 font-medium">{selectedNodeDetails.CreatePerson}</div>
-                </div>
-              )}
-              {selectedNodeDetails.ChangePerson && (
-                <div className="grid grid-cols-3 gap-2 text-xs">
-                  <div className="text-text-primary/70">Changed By</div>
-                  <div className="col-span-2 font-medium">{selectedNodeDetails.ChangePerson}</div>
-                </div>
-              )}
-            </div>
-            <div className="pt-2 border-t border-border space-y-2">
-              {selectedNodeDetails.TCode && (
-                <div className="grid grid-cols-3 gap-2 text-xs">
-                  <div className="text-text-primary/70">T-Code</div>
-                  <div className="col-span-2 font-medium text-primary">{selectedNodeDetails.TCode}</div>
-                </div>
-              )}
-              {selectedNodeDetails.Manual && (
-                <div className="grid grid-cols-3 gap-2 text-xs">
-                  <div className="text-text-primary/70">Manual</div>
-                  <div className="col-span-2">
-                    <a href={selectedNodeDetails.Manual} target="_blank" rel="noreferrer" className="text-primary underline hover:text-primary/80">
-                      View Manual
-                    </a>
+              <div className="pt-2 border-t border-slate-100 space-y-2">
+                {(selectedNode.createPerson || selectedNodeDetails?.CreatePerson) && (
+                  <div className="grid grid-cols-3 gap-2 text-xs"><div className="text-slate-500">Created By</div><div className="col-span-2 font-medium">{selectedNode.createPerson || selectedNodeDetails?.CreatePerson}</div></div>
+                )}
+                {(selectedNode.changePerson || selectedNodeDetails?.ChangePerson) && (
+                  <div className="grid grid-cols-3 gap-2 text-xs"><div className="text-slate-500">Changed By</div><div className="col-span-2 font-medium">{selectedNode.changePerson || selectedNodeDetails?.ChangePerson}</div></div>
+                )}
+              </div>
+              <div className="pt-2 border-t border-slate-100 space-y-2">
+                {(selectedNode.tCode || selectedNodeDetails?.TCode) && (
+                  <div className="grid grid-cols-3 gap-2 text-xs"><div className="text-slate-500">T-Code</div><div className="col-span-2 font-medium text-blue-600">{selectedNode.tCode || selectedNodeDetails?.TCode}</div></div>
+                )}
+                {(selectedNode.manual || selectedNodeDetails?.Manual) && (
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div className="text-slate-500">Manual</div>
+                    <div className="col-span-2">
+                      <a href={selectedNode.manual || selectedNodeDetails?.Manual} target="_blank" rel="noreferrer" className="text-blue-600 underline hover:text-blue-800">View Manual</a>
+                    </div>
                   </div>
-                </div>
-              )}
-              {selectedNodeDetails.Output && (
-                <div className="grid grid-cols-3 gap-2 text-xs">
-                  <div className="text-text-primary/70">Output</div>
-                  <div className="col-span-2 font-medium">{selectedNodeDetails.Output}</div>
-                </div>
-              )}
+                )}
+                {(selectedNode.output || selectedNodeDetails?.Output) && (
+                  <div className="grid grid-cols-3 gap-2 text-xs"><div className="text-slate-500">Output</div><div className="col-span-2 font-medium">{selectedNode.output || selectedNodeDetails?.Output}</div></div>
+                )}
+              </div>
             </div>
-          </div>
-        ) : selectedNode ? (
-          <div className="space-y-3">
-            <div className="grid grid-cols-3 gap-2">
-              <div className="text-xs text-text-primary/70">ID</div>
-              <div className="col-span-2 font-semibold text-sm">{selectedNode.id}</div>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              <div className="text-xs text-text-primary/70">Label</div>
-              <div className="col-span-2 font-semibold whitespace-pre-wrap">{selectedNode.label}</div>
-            </div>
-            <div className="text-xs text-text-primary/70 pt-2">
-              <em>Detailed information not available</em>
-            </div>
-          </div>
-        ) : null}
+          ) : null}
+        </div>
       </Modal>
 
-      {/* Lane / Grid Header Modal */}
+      {/* --- VIEW-ONLY LANE MODAL --- */}
       <Modal title="Lane Details" open={!!selectedLane} onClose={() => setSelectedLane(null)}>
         {selectedLane && (
-          <div className="space-y-3">
-            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-text-primary/70">Name</div><div className="col-span-2 font-semibold">{selectedLane.title}</div></div>
-            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-text-primary/70">Lane ID</div><div className="col-span-2 font-semibold text-sm">{selectedLane.id}</div></div>
-            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-text-primary/70">Assigned To</div><div className="col-span-2 font-semibold">{selectedLane.personId || 'Unassigned'}</div></div>
-            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-text-primary/70">Department</div><div className="col-span-2 font-semibold text-sm text-text-primary/80">General Operations</div></div>
+          <div className="space-y-3 bg-white p-1 text-slate-900 rounded-md">
+            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-slate-500">Lane ID</div><div className="col-span-2 font-semibold text-sm">{selectedLane.id}</div></div>
+            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-slate-500">Name</div><div className="col-span-2 font-semibold">{selectedLane.title}</div></div>
+            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-slate-500">Assigned To</div><div className="col-span-2 font-semibold">{selectedLane.personId || 'Unassigned'}</div></div>
+            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-slate-500">Department</div><div className="col-span-2 font-semibold text-sm text-slate-700">{selectedLane.department || 'General Operations'}</div></div>
           </div>
         )}
       </Modal>
+
+      {/* --- EDITABLE LANE MODAL --- */}
+      <Modal title="Edit Lane" open={!!editingLane} onClose={() => setEditingLane(null)}>
+        {editingLane && (
+          <div className="space-y-4 bg-white p-1 text-slate-900 rounded-md">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Lane ID (Read-Only)</label>
+              <input type="text" disabled className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-500 bg-slate-50" value={editingLane.id} />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Name</label>
+              <input type="text" autoFocus className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" value={editingLane.title} onChange={(e) => setEditingLane({ ...editingLane, title: e.target.value })} />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Assigned To</label>
+              <input type="text" className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" value={editingLane.personId || ''} onChange={(e) => setEditingLane({ ...editingLane, personId: e.target.value })} />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Department</label>
+              <input type="text" className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" value={editingLane.department || ''} onChange={(e) => setEditingLane({ ...editingLane, department: e.target.value })} />
+            </div>
+
+            <div className="flex justify-between items-center pt-5 mt-2 border-t border-slate-100">
+              <button onClick={() => { if (confirm('Delete this lane and all nodes inside it?')) { dispatch(removeLane(editingLane.id)); setEditingLane(null); } }} className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors">Delete Lane</button>
+              <button onClick={() => { dispatch(updateLane({ id: editingLane.id, title: editingLane.title, personId: editingLane.personId, department: editingLane.department })); setEditingLane(null); }} className="px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-colors">Save Changes</button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* --- EDITABLE NODE MODAL --- */}
+      <Modal title="Edit Node Details" open={!!editingNode} onClose={() => setEditingNode(null)}>
+        {editingNode && (
+          <div className="space-y-4 bg-white p-1 text-slate-900 rounded-md">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">ID (Read-Only)</label>
+                <input type="text" disabled className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-500 bg-slate-50" value={editingNode.id} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Type (Read-Only)</label>
+                <input type="text" disabled className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-500 bg-slate-50 uppercase" value={editingNode.type} />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Label / Title</label>
+              <input type="text" className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" value={editingNode.label || ''} onChange={(e) => setEditingNode({ ...editingNode, label: e.target.value })} />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Description</label>
+              <textarea rows={3} className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none" placeholder="Details about this step..." value={editingNode.description || ''} onChange={(e) => setEditingNode({ ...editingNode, description: e.target.value })} />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Create Person</label>
+                <input type="text" className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" value={editingNode.createPerson || ''} onChange={(e) => setEditingNode({ ...editingNode, createPerson: e.target.value })} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Change Person</label>
+                <input type="text" className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" value={editingNode.changePerson || ''} onChange={(e) => setEditingNode({ ...editingNode, changePerson: e.target.value })} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">T-Code</label>
+                <input type="text" className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" value={editingNode.tCode || ''} onChange={(e) => setEditingNode({ ...editingNode, tCode: e.target.value })} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Output</label>
+                <input type="text" className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" value={editingNode.output || ''} onChange={(e) => setEditingNode({ ...editingNode, output: e.target.value })} />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Manual (URL)</label>
+              <input type="text" className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" value={editingNode.manual || ''} onChange={(e) => setEditingNode({ ...editingNode, manual: e.target.value })} />
+            </div>
+
+            <div className="flex justify-end pt-5 mt-2 border-t border-slate-100">
+              <button
+                onClick={() => {
+                  dispatch(updateNodeInfo({
+                    id: editingNode.id,
+                    label: editingNode.label || '',
+                    description: editingNode.description,
+                    tCode: editingNode.tCode,
+                    manual: editingNode.manual,
+                    output: editingNode.output,
+                    createPerson: editingNode.createPerson,
+                    changePerson: editingNode.changePerson
+                  }))
+                  setEditingNode(null)
+                }}
+                className="px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-colors"
+              >
+                Save Details
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
     </main>
   )
 }

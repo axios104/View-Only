@@ -9,12 +9,11 @@ const USE_MOCK = true;
 
 /**
  * Transforms the new Excel-format FlowchartNode[] into RoadmapDiagram.
- * 
- * Derives:
- *   - Lanes from unique `Role` values
- *   - Vertical levels via topological sort (BFS)
- *   - Node visual type from `Type`/`TypeText` and relationship structure
- *   - Edges from `ToRelationshipY` and `ToRelationshipN`
+ * * Derives:
+ * - Lanes from unique `Role` values
+ * - Vertical levels via topological sort (BFS)
+ * - Node visual type from `Type`/`TypeText` and relationship structure
+ * - Edges from `ToRelationshipY` and `ToRelationshipN`
  */
 function transformFlowchartNodesToDiagram(nodes: FlowchartNode[]): RoadmapDiagram {
   // --- 1. Build lanes from unique Role values ---
@@ -120,12 +119,9 @@ function transformFlowchartNodesToDiagram(nodes: FlowchartNode[]): RoadmapDiagra
   });
 
   // --- 3b. Bifurcation: spread Y/N branches horizontally ---
-  // For each decision node, propagate `order` offsets down each branch
-  // until the branches merge at a common node.
   const nodeById = new Map<string, RoadmapNode>();
   roadmapNodes.forEach(n => nodeById.set(n.id, n));
 
-  // Find all nodes reachable from a start node following only Y-links (single chain)
   function getBranchChain(startId: string): string[] {
     const chain: string[] = [];
     let cur = startId;
@@ -134,7 +130,6 @@ function transformFlowchartNodesToDiagram(nodes: FlowchartNode[]): RoadmapDiagra
       visited.add(cur);
       chain.push(cur);
       const fNode = nodeMap.get(cur)!;
-      // Follow only the Y-link (main chain) unless it's also a decision with N
       cur = fNode.ToRelationshipY;
     }
     return chain;
@@ -142,18 +137,15 @@ function transformFlowchartNodesToDiagram(nodes: FlowchartNode[]): RoadmapDiagra
 
   nodes.forEach(n => {
     if (n.ToRelationshipY && n.ToRelationshipN) {
-      // This is a decision node — get the chains for each branch
       const yChain = getBranchChain(n.ToRelationshipY);
       const nChain = getBranchChain(n.ToRelationshipN);
 
-      // Find where the chains merge (first common node)
       const ySet = new Set(yChain);
       let mergeIdx = -1;
       for (let i = 0; i < nChain.length; i++) {
         if (ySet.has(nChain[i])) { mergeIdx = i; break; }
       }
 
-      // Assign order=-1 to Y branch, order=1 to N branch (stop before merge)
       const yEnd = mergeIdx >= 0 ? yChain.indexOf(nChain[mergeIdx]) : yChain.length;
       for (let i = 0; i < yEnd; i++) {
         const rn = nodeById.get(yChain[i]);
@@ -213,7 +205,7 @@ function transformDiagramToFlowchartNodes(diagram: RoadmapDiagram): (FlowchartNo
     if (rawOutEdges.length >= 2) toN = rawOutEdges[1].target;
 
     const base = n.metadata || {};
-    
+
     return {
       L5ID: n.id,
       L5Text: n.label || n.title,
@@ -221,7 +213,7 @@ function transformDiagramToFlowchartNodes(diagram: RoadmapDiagram): (FlowchartNo
       Role: lanesById.get(n.laneId) || 'Unknown',
       Type: base.type || ((n.type as string) === 'process-red' ? 'M' : 'E'),
       TypeText: base.typeText || ((n.type as string) === 'process-red' ? 'Manual' : 'SAP'),
-      FromRelationship: "", // Simplified
+      FromRelationship: "",
       ToRelationshipY: toY,
       ToRelationshipYText: rawOutEdges[0]?.label || "",
       ToRelationshipN: toN,
@@ -237,18 +229,8 @@ export const getRoadmapDiagram = async (): Promise<RoadmapDiagram> => {
   if (USE_MOCK) {
     // Simulate network delay to mimic real API
     await new Promise(resolve => setTimeout(resolve, 500));
-    
-    // Check local storage for edited version
-    const cached = localStorage.getItem('roadmapDiagram');
-    if (cached) {
-      try {
-        return JSON.parse(cached) as RoadmapDiagram;
-      } catch (e) {
-        console.error('Failed to parse cached diagram', e);
-      }
-    }
-    
-    // Transform the new format to diagram
+
+    // Transform the raw data to diagram directly (No Local Storage)
     return transformFlowchartNodesToDiagram(mockRawData);
   }
 
@@ -261,26 +243,35 @@ export const getRoadmapDiagram = async (): Promise<RoadmapDiagram> => {
 };
 
 export const saveRoadmapDiagram = async (diagram: RoadmapDiagram): Promise<void> => {
-  if (USE_MOCK) {
-    // 1. Maintain the local caching
-    localStorage.setItem('roadmapDiagram', JSON.stringify(diagram));
-    
-    // 2. Export mapping to Vite Node backend explicitly
-    try {
-      const flatData = transformDiagramToFlowchartNodes(diagram);
-      await fetch('/api/save-diagram', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(flatData)
-      });
-      console.log('Successfully wrote diagram to project JSON file');
-    } catch (e) {
-      console.error('Failed to trigger local file save via Vite', e)
+  // --- DIRECT API DB SAVE IMPLEMENTATION ---
+
+  /* try {
+    const response = await fetch('YOUR_API_LINK_HERE', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      // Sending the entire metadata directly to the database
+      body: JSON.stringify(diagram) 
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to save diagram metadata to database');
     }
+    
+    console.log('Successfully saved diagram to DB via API');
+  } catch (error) {
+    console.error('Error saving diagram:', error);
+    throw error;
+  }
+  */
+
+  if (USE_MOCK) {
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+    console.log('Mock: Successfully sent diagram metadata to API payload:', diagram);
     return;
   }
-  // Implement actual API call later
-  console.warn('API save not implemented');
 };
 
 /**
@@ -307,7 +298,7 @@ export const getNodeDetails = async (nodeId: string): Promise<NodeDetails> => {
 // --- RESTORED LEGEND FUNCTION ---
 export async function getRoadmapLegend(): Promise<LegendItem[]> {
   if (USE_MOCK) return mockRoadmapLegend;
-  
+
   const res = await fetch('/api/roadmap-legend');
   if (!res.ok) throw new Error(`Failed to load roadmap legend: ${res.status}`);
   return (await res.json()) as LegendItem[];
