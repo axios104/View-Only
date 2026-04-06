@@ -13,6 +13,7 @@ type ProcessCanvasProps = {
   onNodeClick?: (node: PositionedRoadmapNode) => void
   onLaneClick?: (lane: Lane) => void
   onBackgroundClick?: (x: number, y: number) => void
+  onDropNode?: (type: string, worldX: number, worldY: number) => void
 }
 
 export type ProcessCanvasApi = {
@@ -157,7 +158,7 @@ function AnchorHandle({ pos, onClick }: { pos: Anchor, onClick: (e: React.Pointe
 }
 
 export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(function ProcessCanvas(
-  { diagram, className, onPersonClick, onNodeClick, onLaneClick, onBackgroundClick },
+  { diagram, className, onPersonClick, onNodeClick, onLaneClick, onBackgroundClick, onDropNode },
   ref,
 ) {
   // SAFETY NET: Provide fallbacks for missing arrays or canvas properties
@@ -571,6 +572,20 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
               const worldX = px / scale;
               const worldY = py / scale;
               onBackgroundClick?.(worldX, worldY);
+            }}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              const type = e.dataTransfer.getData('application/node-type');
+              if (type && onDropNode) {
+                const rect = transformLayerRef.current?.getBoundingClientRect();
+                if (!rect) return;
+                const px = e.clientX - rect.left;
+                const py = e.clientY - rect.top;
+                const worldX = px / scale;
+                const worldY = py / scale;
+                onDropNode(type, worldX, worldY);
+              }
             }}
             style={{ transform: `scale(${scale})`, transformOrigin: '0 0', width: safeDiagram.canvas.width, height: docHeight, position: 'absolute', left: 0, top: 0 }}
           >

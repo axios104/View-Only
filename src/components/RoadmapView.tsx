@@ -91,8 +91,8 @@ export function RoadmapView() {
     }
   }
 
-  const handleBackgroundClick = (worldX: number, worldY: number) => {
-    if (mode === 'edit' && pendingAddType) {
+  const handleDropNode = (type: string, worldX: number, worldY: number) => {
+    if (mode === 'edit') {
       if (!diagram || diagram.lanes.length === 0) return
       
       const headerH = 64
@@ -110,15 +110,20 @@ export function RoadmapView() {
         node: { 
           id, 
           title: 'New Node', 
-          type: pendingAddType as any, 
+          type: type as any, 
           laneId, 
           level,
-          label: 'New Node'
+          label: 'New Node',
+          posX: worldX,
+          posY: worldY
         } 
       }))
-      dispatch(setPendingAddType(null))
       dispatch(setSelectedEditNodeId(id))
-    } else if (mode === 'edit') {
+    }
+  }
+
+  const handleBackgroundClick = () => {
+    if (mode === 'edit') {
       dispatch(setSelectedEditNodeId(null))
     }
   }
@@ -205,25 +210,28 @@ export function RoadmapView() {
           {mode === 'edit' ? (
             <>
               <button
-                onClick={() => dispatch(setPendingAddType(pendingAddType === 'process' ? null : 'process'))}
-                className={`grid size-8 place-items-center rounded-md border text-[#2c3e50] hover:border-border hover:bg-btn ${pendingAddType === 'process' ? 'border-border bg-btn text-[var(--color-primary)]' : 'border-transparent'}`}
-                title="Add Process Node"
+                draggable
+                onDragStart={(e) => e.dataTransfer.setData('application/node-type', 'process')}
+                className={`grid size-8 place-items-center rounded-md border text-[#2c3e50] border-transparent hover:border-border hover:bg-btn cursor-grab`}
+                title="Drag to add Process Node"
               >
-                <div className="w-[18px] h-[14px] border-[2px] border-current rounded-sm"></div>
+                <div className="w-[18px] h-[14px] border-[2px] border-current rounded-sm pointer-events-none"></div>
               </button>
               <button
-                onClick={() => dispatch(setPendingAddType(pendingAddType === 'decision' ? null : 'decision'))}
-                className={`grid size-8 place-items-center rounded-md border text-[#2c3e50] hover:border-border hover:bg-btn ${pendingAddType === 'decision' ? 'border-border bg-btn text-[var(--color-primary)]' : 'border-transparent'}`}
-                title="Add Decision Node"
+                draggable
+                onDragStart={(e) => e.dataTransfer.setData('application/node-type', 'decision')}
+                className={`grid size-8 place-items-center rounded-md border text-[#2c3e50] border-transparent hover:border-border hover:bg-btn cursor-grab`}
+                title="Drag to add Decision Node"
               >
-                <div className="w-[14px] h-[14px] border-[2px] border-current transform rotate-45"></div>
+                <div className="w-[14px] h-[14px] border-[2px] border-current transform rotate-45 pointer-events-none"></div>
               </button>
               <button
-                onClick={() => dispatch(setPendingAddType(pendingAddType === 'terminator' ? null : 'terminator'))}
-                className={`grid size-8 place-items-center rounded-md border text-[#2c3e50] hover:border-border hover:bg-btn ${pendingAddType === 'terminator' ? 'border-border bg-btn text-[var(--color-primary)]' : 'border-transparent'}`}
-                title="Add Terminator Node"
+                draggable
+                onDragStart={(e) => e.dataTransfer.setData('application/node-type', 'terminator')}
+                className={`grid size-8 place-items-center rounded-md border text-[#2c3e50] border-transparent hover:border-border hover:bg-btn cursor-grab`}
+                title="Drag to add Terminator Node"
               >
-                <div className="w-[18px] h-[10px] border-[2px] border-current rounded-[10px]"></div>
+                <div className="w-[18px] h-[10px] border-[2px] border-current rounded-[10px] pointer-events-none"></div>
               </button>
               <div className="h-[1px] w-6 bg-border my-[2px]" />
               <button
@@ -310,19 +318,6 @@ export function RoadmapView() {
                     className="text-xs border border-border bg-[var(--color-bg-body)] text-text-primary rounded px-2 py-1 w-40"
                     placeholder="Node Label"
                   />
-                  <select 
-                    className="text-xs border border-border bg-[var(--color-bg-body)] text-text-primary rounded px-2 py-1"
-                    value={nd.type}
-                    onChange={(e) => dispatch(updateNodeStyle({ id: selectedEditNodeId, type: e.target.value as any }))}
-                  >
-                    <option value="">Change Type...</option>
-                    <option value="process">Process (Blue)</option>
-                    <option value="process-red">Manual (Red)</option>
-                    <option value="process-purple">Legacy (Purple)</option>
-                    <option value="decision">Decision</option>
-                    <option value="data">Data</option>
-                    <option value="terminator">Terminator</option>
-                  </select>
                 </div>
               )
             })()}
@@ -335,6 +330,7 @@ export function RoadmapView() {
             onNodeClick={handleNodeClick}
             onLaneClick={(l) => setSelectedLane(l)}
             onBackgroundClick={handleBackgroundClick}
+            onDropNode={handleDropNode}
           />
         ) : loading ? (
           <div className="grid h-full place-items-center text-sm text-text-primary/70">Loading…</div>
