@@ -20,16 +20,27 @@ export function RoadmapView() {
   const [nodeDetailsLoading, setNodeDetailsLoading] = useState(false)
   const [selectedLane, setSelectedLane] = useState<Lane | null>(null)
 
+  const { activeTab } = useAppSelector((s) => s.ui)
   const { handMode, magnifierMode, mode, selectedEditNodeId, selectedEditEdgeId, pendingAddType } = useAppSelector((s) => s.canvas)
   const { data: diagram, loading, error } = useAppSelector((s) => s.diagram)
 
-  const isAdmin = diagram?.userRole !== 'user';
+  // Use the Redux UI state from the Tabs to force admin layout securely
+  const isAdmin = activeTab === 'Model Edit';
 
   useEffect(() => {
     dispatch(fetchDiagram())
   }, [dispatch])
 
-  // Removed the auto-reset on diagram change that forced scale to 1 and tx/ty to 0.
+  // Automatically enforce the 'mode' for Redux based entirely on the URL router
+  useEffect(() => {
+    if (isAdmin) {
+      dispatch(setMode('edit'))
+    } else {
+      dispatch(setMode('view'))
+      dispatch(setSelectedEditNodeId(null))
+      dispatch(setSelectedEditEdgeId(null))
+    }
+  }, [isAdmin, dispatch])
 
   // Fetch node details when a node is clicked
   const handleNodeClick = async (node: PositionedRoadmapNode) => {
@@ -130,19 +141,19 @@ export function RoadmapView() {
       }
 
       // Undo / Redo
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+      if (isAdmin && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         dispatch(undo());
         return;
       }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+      if (isAdmin && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
         e.preventDefault();
         dispatch(redo());
         return;
       }
 
       // Deletion
-      if (e.key === 'Backspace' || e.key === 'Delete') {
+      if (isAdmin && (e.key === 'Backspace' || e.key === 'Delete')) {
         if (selectedEditNodeId || selectedEditEdgeId) {
           e.preventDefault();
           handleDeleteNode();
@@ -152,14 +163,14 @@ export function RoadmapView() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [dispatch, selectedEditNodeId, selectedEditEdgeId]);
+  }, [dispatch, selectedEditNodeId, selectedEditEdgeId, isAdmin]);
 
 
   return (
     <main className="flex h-full flex-col bg-[var(--color-bg-body)]">
       <section className="relative flex-1 flex-col">
         {diagram && (
-          <div className="absolute right-8 top-6 z-20 flex items-center gap-2 pointer-events-none">
+          <div className="absolute right-8 top-6 z-20 flex items-center gap-4 pointer-events-none">
             <div className={`px-4 py-1.5 rounded-full text-xs font-bold border shadow-md flex items-center gap-1.5 backdrop-blur-sm ${diagram.isApproved ? 'bg-emerald-50 text-emerald-700 border-emerald-200/60' : 'bg-amber-50 text-amber-700 border-amber-200/60'}`}>
               <span className="text-base leading-none">{diagram.isApproved ? '✓' : '⚠️'}</span>
               {diagram.isApproved ? 'Admin Approved' : 'Not Approved (Excel)'}

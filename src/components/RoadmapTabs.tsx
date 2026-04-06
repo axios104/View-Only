@@ -2,7 +2,7 @@ import { setActiveTab } from '../store/uiSlice'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
 import type { RoadmapTabKey } from '../types/ui'
 
-const tabs: RoadmapTabKey[] = ['Activities', 'Model', 'Process Overview', 'Matrix']
+const tabs: RoadmapTabKey[] = ['Activities', 'Model View', 'Model Edit', 'Process Overview', 'Matrix']
 
 export function RoadmapTabs() {
   const dispatch = useAppDispatch()

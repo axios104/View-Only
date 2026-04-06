@@ -197,6 +197,42 @@ function transformFlowchartNodesToDiagram(nodes: FlowchartNode[]): RoadmapDiagra
   };
 }
 
+/**
+ * Transforms RoadmapDiagram back into Excel-compatible flat JSON structure,
+ * appending PosX and PosY coordinates.
+ */
+function transformDiagramToFlowchartNodes(diagram: RoadmapDiagram): (FlowchartNode & { PosX?: number, PosY?: number })[] {
+  const lanesById = new Map<string, string>();
+  diagram.lanes.forEach(l => lanesById.set(l.id, l.title));
+
+  return diagram.nodes.map(n => {
+    const rawOutEdges = diagram.edges.filter(e => e.source === n.id);
+    let toY = "";
+    let toN = "";
+    if (rawOutEdges.length >= 1) toY = rawOutEdges[0].target;
+    if (rawOutEdges.length >= 2) toN = rawOutEdges[1].target;
+
+    const base = n.metadata || {};
+    
+    return {
+      L5ID: n.id,
+      L5Text: n.label || n.title,
+      Level: base.originalLevel || (n.type === 'terminator' ? 'L4' : 'L5'),
+      Role: lanesById.get(n.laneId) || 'Unknown',
+      Type: base.type || ((n.type as string) === 'process-red' ? 'M' : 'E'),
+      TypeText: base.typeText || ((n.type as string) === 'process-red' ? 'Manual' : 'SAP'),
+      FromRelationship: "", // Simplified
+      ToRelationshipY: toY,
+      ToRelationshipYText: rawOutEdges[0]?.label || "",
+      ToRelationshipN: toN,
+      ToRelationshipNText: rawOutEdges[1]?.label || "",
+      Lvl: n.level,
+      PosX: n.posX,
+      PosY: n.posY
+    };
+  });
+}
+
 export const getRoadmapDiagram = async (): Promise<RoadmapDiagram> => {
   if (USE_MOCK) {
     // Simulate network delay to mimic real API
@@ -226,7 +262,21 @@ export const getRoadmapDiagram = async (): Promise<RoadmapDiagram> => {
 
 export const saveRoadmapDiagram = async (diagram: RoadmapDiagram): Promise<void> => {
   if (USE_MOCK) {
+    // 1. Maintain the local caching
     localStorage.setItem('roadmapDiagram', JSON.stringify(diagram));
+    
+    // 2. Export mapping to Vite Node backend explicitly
+    try {
+      const flatData = transformDiagramToFlowchartNodes(diagram);
+      await fetch('/api/save-diagram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(flatData)
+      });
+      console.log('Successfully wrote diagram to project JSON file');
+    } catch (e) {
+      console.error('Failed to trigger local file save via Vite', e)
+    }
     return;
   }
   // Implement actual API call later

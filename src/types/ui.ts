@@ -1,2 +1,2 @@
-export type RoadmapTabKey = 'Activities' | 'Model' | 'Process Overview' | 'Matrix'
+export type RoadmapTabKey = 'Activities' | 'Model View' | 'Model Edit' | 'Process Overview' | 'Matrix'
 

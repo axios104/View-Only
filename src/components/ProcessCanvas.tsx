@@ -430,7 +430,7 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
   const resetToLeft = () => {
     const el = viewportRef.current
     if (!el) return
-    dispatch(setScale(1))
+    dispatch(setScale(0.85))
     requestAnimationFrame(() => {
       el.scrollLeft = 0
       el.scrollTop = 0

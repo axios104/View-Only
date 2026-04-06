@@ -6,7 +6,7 @@ export type UiState = {
 }
 
 const initialState: UiState = {
-  activeTab: 'Model',
+  activeTab: 'Model View',
 }
 
 const uiSlice = createSlice({

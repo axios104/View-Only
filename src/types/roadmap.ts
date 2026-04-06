@@ -96,6 +96,7 @@ export interface RoadmapDiagram {
   people?: Person[];
   canvas?: RoadmapCanvas;
   isApproved?: boolean;
+  userRole?: 'admin' | 'user';
 }
 
 // Node details fetched on-demand when node is clicked

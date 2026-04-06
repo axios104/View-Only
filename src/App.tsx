@@ -12,7 +12,7 @@ function App() {
       <RoadmapHeader />
       <RoadmapTabs />
       <div className="flex-1">
-        {activeTab === 'Model' ? (
+        {activeTab === 'Model View' || activeTab === 'Model Edit' ? (
           <RoadmapView />
         ) : (
           <div className="grid h-full place-items-center bg-[var(--color-bg-body)] px-6">
