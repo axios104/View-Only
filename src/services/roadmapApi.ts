@@ -201,6 +201,17 @@ export const getRoadmapDiagram = async (): Promise<RoadmapDiagram> => {
   if (USE_MOCK) {
     // Simulate network delay to mimic real API
     await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Check local storage for edited version
+    const cached = localStorage.getItem('roadmapDiagram');
+    if (cached) {
+      try {
+        return JSON.parse(cached) as RoadmapDiagram;
+      } catch (e) {
+        console.error('Failed to parse cached diagram', e);
+      }
+    }
+    
     // Transform the new format to diagram
     return transformFlowchartNodesToDiagram(mockRawData);
   }
@@ -211,6 +222,15 @@ export const getRoadmapDiagram = async (): Promise<RoadmapDiagram> => {
   }
   const nodes = await response.json();
   return transformFlowchartNodesToDiagram(nodes);
+};
+
+export const saveRoadmapDiagram = async (diagram: RoadmapDiagram): Promise<void> => {
+  if (USE_MOCK) {
+    localStorage.setItem('roadmapDiagram', JSON.stringify(diagram));
+    return;
+  }
+  // Implement actual API call later
+  console.warn('API save not implemented');
 };
 
 /**

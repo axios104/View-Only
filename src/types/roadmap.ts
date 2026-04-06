@@ -70,6 +70,8 @@ export interface RoadmapNode {
   label?: string;
   // Added metadata to hold the extra flat-file columns
   metadata?: Record<string, string | undefined>;
+  posX?: number;
+  posY?: number;
 }
 
 export interface RoadmapEdge {
@@ -93,6 +95,7 @@ export interface RoadmapDiagram {
   edges: RoadmapEdge[];
   people?: Person[];
   canvas?: RoadmapCanvas;
+  isApproved?: boolean;
 }
 
 // Node details fetched on-demand when node is clicked

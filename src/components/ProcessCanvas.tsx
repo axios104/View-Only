@@ -1,7 +1,8 @@
 import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import type { Anchor, Person, RoadmapDiagram, NodeShape, Lane } from '../types/roadmap'
-import { setTranslate, setScale } from '../store/canvasSlice'
+import { setTranslate, setScale, setSelectedEditEdgeId, setSelectedEditNodeId } from '../store/canvasSlice'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
+import { updateNodeCoords, addEdge, removeEdge } from '../store/diagramSlice'
 import { Avatar } from './Avatar'
 import { layoutRoadmapNodes, type PositionedRoadmapNode } from '../layout/layoutRoadmap'
 
@@ -11,6 +12,7 @@ type ProcessCanvasProps = {
   onPersonClick?: (person: Person) => void
   onNodeClick?: (node: PositionedRoadmapNode) => void
   onLaneClick?: (lane: Lane) => void
+  onBackgroundClick?: (x: number, y: number) => void
 }
 
 export type ProcessCanvasApi = {
@@ -72,39 +74,90 @@ function NodeBg({ shape, fill, border }: { shape: NodeShape, fill: string, borde
   return null
 }
 
-function Node({ n }: { n: PositionedRoadmapNode }) {
-  // `overflow-hidden` prevents label text from bleeding into neighboring nodes.
-  const base = 'absolute grid select-none place-items-center text-center text-[11px] leading-snug overflow-hidden transition-all duration-200 hover:brightness-110 hover:scale-105 z-10 cursor-pointer'
+function Node({ n, onClick, onPointerDown, onAnchorDown, onMouseEnter, onMouseLeave }: { 
+  n: PositionedRoadmapNode, 
+  onClick?: (n: PositionedRoadmapNode) => void,
+  onPointerDown?: (e: React.PointerEvent, n: PositionedRoadmapNode) => void,
+  onAnchorDown?: (e: React.PointerEvent, n: PositionedRoadmapNode, a: Anchor) => void,
+  onMouseEnter?: (n: PositionedRoadmapNode) => void,
+  onMouseLeave?: (n: PositionedRoadmapNode) => void,
+}) {
+  const { selectedEditNodeId, mode, handMode } = useAppSelector((s) => s.canvas)
+  const isSelected = mode === 'edit' && selectedEditNodeId === n.id
+
+  const base = 'absolute grid select-none place-items-center text-center text-[11px] leading-snug transition-all duration-200 z-10'
 
   return (
     <div
-      className={base}
+      className={base + (mode === 'edit' ? ' cursor-move hover:brightness-110' : ' cursor-pointer hover:scale-105 hover:brightness-110')}
       data-node-id={n.id}
       role="button"
       tabIndex={0}
+      onClick={(e) => {
+        if (!handMode) {
+          e.stopPropagation()
+          onClick?.(n)
+        }
+      }}
+      onPointerDown={(e) => onPointerDown?.(e, n)}
+      onMouseEnter={() => onMouseEnter?.(n)}
+      onMouseLeave={() => onMouseLeave?.(n)}
       style={{
         left: n.x,
         top: n.y,
         width: n.w,
         height: n.h,
         color: n.style.text,
-        fontWeight: 600
+        fontWeight: 600,
+        outline: isSelected ? '3px solid var(--color-primary)' : 'none',
+        outlineOffset: isSelected ? '4px' : '0px',
+        borderRadius: n.shape === 'decision' || n.shape === 'hexagon' ? '4px' : 'inherit'
       }}
     >
-      <NodeBg shape={n.shape} fill={n.style.fill} border={n.style.border} />
-      <div className="relative z-10 flex h-full w-full items-center justify-center p-2 text-center overflow-hidden">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none" style={{ borderRadius: 'inherit' }}>
+        <NodeBg shape={n.shape} fill={n.style.fill} border={n.style.border} />
+      </div>
+      <div className="relative z-10 flex h-full w-full items-center justify-center p-2 text-center overflow-hidden pointer-events-none">
         <div>
           {(n.label ?? '').split('\n').map((line: string, idx: number) => (
             <div key={idx} className="break-words">{line}</div>
           ))}
         </div>
       </div>
+
+      {isSelected && (
+        <>
+          <AnchorHandle pos="top" onClick={(e) => onAnchorDown?.(e, n, 'top')} />
+          <AnchorHandle pos="right" onClick={(e) => onAnchorDown?.(e, n, 'right')} />
+          <AnchorHandle pos="bottom" onClick={(e) => onAnchorDown?.(e, n, 'bottom')} />
+          <AnchorHandle pos="left" onClick={(e) => onAnchorDown?.(e, n, 'left')} />
+        </>
+      )}
     </div>
   )
 }
 
+function AnchorHandle({ pos, onClick }: { pos: Anchor, onClick: (e: React.PointerEvent) => void }) {
+  const getStyle = () => {
+    switch(pos) {
+      case 'top': return { top: -5, left: '50%', transform: 'translateX(-50%)' }
+      case 'bottom': return { bottom: -5, left: '50%', transform: 'translateX(-50%)' }
+      case 'left': return { left: -5, top: '50%', transform: 'translateY(-50%)' }
+      case 'right': return { right: -5, top: '50%', transform: 'translateY(-50%)' }
+      default: return {}
+    }
+  }
+  return (
+    <div 
+      className="absolute w-3 h-3 bg-[var(--color-primary)] border-[1.5px] border-white rounded-full z-20 cursor-crosshair hover:scale-125 transition-transform"
+      style={getStyle()}
+      onPointerDown={(e) => { e.stopPropagation(); onClick(e); }}
+    />
+  )
+}
+
 export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(function ProcessCanvas(
-  { diagram, className, onPersonClick, onNodeClick, onLaneClick },
+  { diagram, className, onPersonClick, onNodeClick, onLaneClick, onBackgroundClick },
   ref,
 ) {
   // SAFETY NET: Provide fallbacks for missing arrays or canvas properties
@@ -118,13 +171,19 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
   }), [diagram])
 
   const dispatch = useAppDispatch()
-  const { scale, tx, ty, handMode, magnifierMode } = useAppSelector((s) => s.canvas)
+  const { scale, tx, ty, handMode, magnifierMode, pendingAddType, mode, selectedEditEdgeId } = useAppSelector((s) => s.canvas)
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const transformLayerRef = useRef<HTMLDivElement | null>(null)
 
   const [dragging, setDragging] = useState(false)
   const lastPointerRef = useRef<{ x: number; y: number } | null>(null)
   const clickCandidateRef = useRef<{ personId: string | null; nodeId: string | null; laneId: string | null; x: number; y: number; moved: boolean }>({ personId: null, nodeId: null, laneId: null, x: 0, y: 0, moved: false })
+
+  const [draggedNode, setDraggedNode] = useState<{ id: string, x: number, y: number, laneId?: string } | null>(null)
+  
+  type DrawingEdge = { sourceId: string; sourceAnchor: Anchor; x: number; y: number }
+  const [drawingEdge, setDrawingEdge] = useState<DrawingEdge | null>(null)
+  const hoveredNodeRef = useRef<string | null>(null)
 
   const peopleById = useMemo(() => {
     const m = new Map<string, Person>()
@@ -220,6 +279,115 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
     return offsetEdges
   }, [safeDiagram.edges, nodesById])
 
+  const renderNodes = useMemo(() => {
+    return positionedNodes.map(n => {
+      if (draggedNode?.id === n.id) {
+        return { ...n, x: draggedNode.x, y: draggedNode.y } as PositionedRoadmapNode
+      }
+      return n
+    })
+  }, [positionedNodes, draggedNode])
+
+  const handleNodePointerDown = (e: React.PointerEvent, n: PositionedRoadmapNode) => {
+    if (mode !== 'edit' || handMode) return
+    e.stopPropagation()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    
+    dispatch(setSelectedEditNodeId(n.id))
+    
+    const el = transformLayerRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    
+    const px = e.clientX - rect.left
+    const py = e.clientY - rect.top
+    const worldX = px / scale
+    const worldY = py / scale
+    const offsetX = worldX - n.x
+    const offsetY = worldY - n.y
+    
+    setDraggedNode({ id: n.id, x: n.x, y: n.y })
+    
+    const onMove = (ev: PointerEvent) => {
+      const ex = ev.clientX - rect.left
+      const ey = ev.clientY - rect.top
+      const worldX = ex / scale
+      const worldY = ey / scale
+      
+      // Find the lane the cursor is over
+      const laneIdx = Math.max(0, Math.min(safeDiagram.lanes.length - 1, Math.floor(worldX / laneWidth)))
+      const hoveredLaneId = safeDiagram.lanes[laneIdx]?.id
+      
+      // Clamp strictly inside that lane's column boundaries
+      const laneMinX = laneIdx * laneWidth + 8
+      const laneMaxX = laneMinX + laneWidth - n.w - 16
+      
+      const nx = worldX - offsetX
+      const ny = worldY - offsetY
+      const clampedX = Math.max(laneMinX, Math.min(laneMaxX, nx))
+      
+      setDraggedNode({ id: n.id, x: clampedX, y: ny, laneId: hoveredLaneId })
+    }
+    
+    const onUp = (ev: PointerEvent) => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      setDraggedNode(prev => {
+        if (prev) {
+          dispatch(updateNodeCoords({ id: n.id, posX: prev.x, posY: prev.y, laneId: prev.laneId }))
+        }
+        return null
+      })
+      try { (ev.target as Element).releasePointerCapture(ev.pointerId) } catch {}
+    }
+    
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+  }
+
+  const handleAnchorDown = (e: React.PointerEvent, n: PositionedRoadmapNode, a: Anchor) => {
+    if (mode !== 'edit') return
+    e.stopPropagation()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    
+    const el = transformLayerRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    
+    const startPt = anchorPoint(n, a)
+    setDrawingEdge({ sourceId: n.id, sourceAnchor: a, x: startPt.x, y: startPt.y })
+    
+    const onMove = (ev: PointerEvent) => {
+      const ex = ev.clientX - rect.left
+      const ey = ev.clientY - rect.top
+      const worldX = ex / scale
+      const worldY = ey / scale
+      
+      setDrawingEdge(prev => prev ? { ...prev, x: worldX, y: worldY } : null)
+      
+      // Calculate manual collision because pointer-capture blocks onMouseEnter
+      const hovered = positionedNodes.find(pn => worldX >= pn.x && worldX <= pn.x + pn.w && worldY >= pn.y && worldY <= pn.y + pn.h)
+      hoveredNodeRef.current = hovered ? hovered.id : null
+    }
+    
+    const onUp = (ev: PointerEvent) => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      
+      setDrawingEdge(prev => {
+        if (prev && hoveredNodeRef.current && hoveredNodeRef.current !== prev.sourceId) {
+          const edgeId = `edge-${Date.now()}`
+          dispatch(addEdge({ edge: { id: edgeId, source: prev.sourceId, target: hoveredNodeRef.current, fromAnchor: prev.sourceAnchor, toAnchor: 'top' } }))
+        }
+        return null
+      })
+      try { (ev.target as Element).releasePointerCapture(ev.pointerId) } catch {}
+    }
+    
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+  }
+
   const zoomAround = (nextScale: number, clientX: number, clientY: number) => {
     const el = viewportRef.current
     if (!el) return
@@ -288,7 +456,7 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
       <div
         ref={viewportRef}
         className={['absolute inset-0 overflow-auto bg-[var(--color-bg-body)]',
-          magnifierMode ? 'cursor-zoom-in' : (handMode ? (dragging ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-default')].join(' ')}
+          pendingAddType ? 'cursor-crosshair' : (magnifierMode ? 'cursor-zoom-in' : (handMode ? (dragging ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-default'))].join(' ')}
         style={{ touchAction: 'none' }}
         onScroll={() => {
           // Sync scroll position to Redux for minimap
@@ -350,10 +518,21 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
             try { e.currentTarget.releasePointerCapture(e.pointerId) } catch { }
 
             if (ev.type === 'pointerup' && !clickCandidateRef.current.moved) {
-              const { personId, nodeId, laneId } = clickCandidateRef.current
+              const { personId, nodeId, laneId, x, y } = clickCandidateRef.current
               if (nodeId) onNodeClick?.(nodesById.get(nodeId)!)
               else if (personId) onPersonClick?.(peopleById.get(personId)!)
               else if (laneId) onLaneClick?.(lanesById.get(laneId)!)
+              else {
+                const el = viewportRef.current
+                if (el) {
+                  const rect = el.getBoundingClientRect()
+                  const px = x - rect.left
+                  const py = y - rect.top
+                  const worldX = (el.scrollLeft + px) / scale
+                  const worldY = (el.scrollTop + py) / scale
+                  onBackgroundClick?.(worldX, worldY)
+                }
+              }
             }
           }
 
@@ -380,6 +559,19 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
         >
           <div
             ref={transformLayerRef}
+            onClick={(e) => {
+              if (handMode) return;
+              // If click happened on a known node or lane, let it propagate but do nothing here
+              if ((e.target as HTMLElement).closest('[data-node-id]') || (e.target as HTMLElement).closest('[data-lane-id]')) return;
+              
+              const rect = transformLayerRef.current?.getBoundingClientRect();
+              if (!rect) return;
+              const px = e.clientX - rect.left;
+              const py = e.clientY - rect.top;
+              const worldX = px / scale;
+              const worldY = py / scale;
+              onBackgroundClick?.(worldX, worldY);
+            }}
             style={{ transform: `scale(${scale})`, transformOrigin: '0 0', width: safeDiagram.canvas.width, height: docHeight, position: 'absolute', left: 0, top: 0 }}
           >
             {safeDiagram.lanes.map((lane, idx) => (
@@ -412,26 +604,61 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
                   <polygon points="0 0, 10 3, 0 6" fill="var(--color-bg-sap-function)" />
                 </marker>
               </defs>
+              {drawingEdge && (() => {
+                const srcNode = nodesById.get(drawingEdge.sourceId)
+                if(!srcNode) return null
+                const pt = anchorPoint({ ...srcNode, x: draggedNode?.id === srcNode.id ? draggedNode.x : srcNode.x, y: draggedNode?.id === srcNode.id ? draggedNode.y : srcNode.y }, drawingEdge.sourceAnchor)
+                return (
+                  <path d={`M ${pt.x} ${pt.y} L ${drawingEdge.x} ${drawingEdge.y}`} stroke="var(--color-primary)" strokeWidth={3} fill="none" strokeDasharray="5,5" />
+                )
+              })()}
               {edges.map((e) => {
-                const midX = (e.from.x + e.to.x) / 2
-                const vGap = Math.abs(e.to.y - e.from.y)
-                const bendY = e.from.y + vGap / 2
-                const isGoingRight = e.to.x >= e.from.x
+                const draggedSrc = draggedNode && e.source === draggedNode.id
+                const draggedTgt = draggedNode && e.target === draggedNode.id
+                const sN = nodesById.get(e.source)
+                const tN = nodesById.get(e.target)
+                if (!sN || !tN) return null
+                
+                const fromNode = draggedSrc ? { ...sN, x: draggedNode.x, y: draggedNode.y } : sN
+                const toNode = draggedTgt ? { ...tN, x: draggedNode.x, y: draggedNode.y } : tN
+                
+                const fromPt = anchorPoint(fromNode, e.fromAnchor ?? 'right')
+                const toPt = anchorPoint(toNode, e.toAnchor ?? 'left')
+
+                const midX = (fromPt.x + toPt.x) / 2
+                const vGap = Math.abs(toPt.y - fromPt.y)
+                const bendY = fromPt.y + vGap / 2
+                const isGoingRight = toPt.x >= fromPt.x
                 const labelX = isGoingRight ? midX + 40 : midX - 40
                 const labelY = bendY - 15
                 const offset = (e.offset || 0)
                 const bendXOffset = midX + offset
 
+                const isSelectedEdge = selectedEditEdgeId === e.id
+                const strokeColor = isSelectedEdge ? 'var(--color-primary)' : e.connector
+
                 return (
-                  <g key={e.id}>
-                    {/* Connector path with offset for parallel edges */}
-                    <path d={`M ${e.from.x} ${e.from.y} L ${bendXOffset} ${e.from.y} L ${bendXOffset} ${e.to.y} L ${e.to.x} ${e.to.y}`}
-                      stroke={e.connector} strokeWidth={2} fill="none" strokeOpacity={0.85} strokeLinecap="round" strokeLinejoin="round" markerEnd="url(#arrowhead)" />
-                    {/* Dot at source (departure from node) */}
-                    <circle cx={e.from.x} cy={e.from.y} r={3.5} fill={e.connector} opacity={0.9} />
-                    {/* Dot at target (arrival at node) */}
-                    <circle cx={e.to.x} cy={e.to.y} r={3.5} fill={e.connector} opacity={0.9} />
-                    {/* Label positioned to the SIDE based on connector direction */}
+                  <g key={e.id} 
+                    className={mode === 'edit' ? 'cursor-pointer hover:opacity-80' : ''}
+                    onClick={(ev) => {
+                      if (mode === 'edit') {
+                        ev.stopPropagation()
+                        dispatch(setSelectedEditEdgeId(e.id))
+                      }
+                    }}
+                  >
+                    {/* Invisible thicker area for easier clicking */}
+                    <path d={`M ${fromPt.x} ${fromPt.y} L ${bendXOffset} ${fromPt.y} L ${bendXOffset} ${toPt.y} L ${toPt.x} ${toPt.y}`}
+                      stroke="transparent" strokeWidth={15} fill="none" />
+                      
+                    {/* Connector path */}
+                    <path d={`M ${fromPt.x} ${fromPt.y} L ${bendXOffset} ${fromPt.y} L ${bendXOffset} ${toPt.y} L ${toPt.x} ${toPt.y}`}
+                      stroke={strokeColor} strokeWidth={isSelectedEdge ? 3 : 2} fill="none" strokeOpacity={0.85} strokeLinecap="round" strokeLinejoin="round" markerEnd="url(#arrowhead)" />
+                    {/* Dot at source */}
+                    <circle cx={fromPt.x} cy={fromPt.y} r={3.5} fill={strokeColor} opacity={0.9} />
+                    {/* Dot at target */}
+                    <circle cx={toPt.x} cy={toPt.y} r={3.5} fill={strokeColor} opacity={0.9} />
+                    {/* Label */}
                     {e.label && (
                       <text x={labelX} y={labelY} textAnchor={isGoingRight ? 'start' : 'end'} fontSize={11} fill="var(--color-text-primary)" fontWeight={600}
                         style={{ pointerEvents: 'none' }}>
@@ -442,7 +669,17 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
                 )
               })}
             </svg>
-            {positionedNodes.map((n) => <Node key={n.id} n={n} />)}
+            {renderNodes.map((n) => (
+              <Node 
+                key={n.id} 
+                n={n} 
+                onClick={onNodeClick} 
+                onPointerDown={handleNodePointerDown}
+                onAnchorDown={handleAnchorDown}
+                onMouseEnter={() => { hoveredNodeRef.current = n.id }}
+                onMouseLeave={() => { hoveredNodeRef.current = null }}
+              />
+            ))}
           </div>{/* close transform layer */}
         </div>{/* close sizer */}
 

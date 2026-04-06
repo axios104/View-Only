@@ -120,7 +120,15 @@ export function layoutRoadmapNodes(diagram: RoadmapDiagram, opts: LayoutOptions)
     }
     
     // Vertically center inside its level (row)
-    const y = cellY + (rowGap - h) / 2
+    let y = cellY + (rowGap - h) / 2
+
+    // If manual drag coordinates exist, override the calc while strictly clamping X to the lane
+    if (n.posX !== undefined) {
+      x = Math.max(cellX + lanePadX, Math.min(cellX + opts.laneWidth - w - lanePadX, n.posX))
+    }
+    if (n.posY !== undefined) {
+      y = Math.max(opts.headerH + lanePadY, n.posY)
+    }
 
     return { 
       ...n,

@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAppSelector, useAppDispatch } from '../store/hooks'
-import { setHandMode, setMagnifierMode } from '../store/canvasSlice'
-import { fetchDiagram } from '../store/diagramSlice'
-import { getNodeDetails } from '../services/roadmapApi'
-import type { Person, Lane, NodeDetails } from '../types/roadmap'
+import { setHandMode, setMagnifierMode, setMode, setSelectedEditNodeId, setSelectedEditEdgeId, setPendingAddType } from '../store/canvasSlice'
+import { fetchDiagram, addNode, removeNode, removeEdge, updateNodeStyle, updateNodeLabel, undo, redo } from '../store/diagramSlice'
+import { getNodeDetails, saveRoadmapDiagram } from '../services/roadmapApi'
+import type { Person, Lane, NodeDetails, RoadmapDiagram } from '../types/roadmap'
 import { Modal } from './Modal'
 import { ProcessCanvas, type ProcessCanvasApi } from './ProcessCanvas'
-import type { PositionedRoadmapNode } from '../layout/layoutRoadmap'
+import { layoutRoadmapNodes, type PositionedRoadmapNode } from '../layout/layoutRoadmap'
+import { Eye, Edit2, Hand, Search, RefreshCw, Save, Trash2, Maximize, Minus, Plus } from 'lucide-react'
 
 export function RoadmapView() {
   const dispatch = useAppDispatch()
@@ -19,19 +20,27 @@ export function RoadmapView() {
   const [nodeDetailsLoading, setNodeDetailsLoading] = useState(false)
   const [selectedLane, setSelectedLane] = useState<Lane | null>(null)
 
-  const { handMode, magnifierMode } = useAppSelector((s) => s.canvas)
+  const { handMode, magnifierMode, mode, selectedEditNodeId, selectedEditEdgeId, pendingAddType } = useAppSelector((s) => s.canvas)
   const { data: diagram, loading, error } = useAppSelector((s) => s.diagram)
+
+  const isAdmin = diagram?.userRole !== 'user';
 
   useEffect(() => {
     dispatch(fetchDiagram())
   }, [dispatch])
 
-  useEffect(() => {
-    if (diagram) window.setTimeout(() => canvasRef.current?.reset(), 0)
-  }, [diagram])
+  // Removed the auto-reset on diagram change that forced scale to 1 and tx/ty to 0.
 
   // Fetch node details when a node is clicked
   const handleNodeClick = async (node: PositionedRoadmapNode) => {
+    if (mode === 'edit') {
+      dispatch(setSelectedEditNodeId(node.id))
+      return
+    }
+
+    if (mode === 'none') return;
+
+
     setSelectedNode(node)
     setNodeDetailsLoading(true)
     try {
@@ -50,64 +59,262 @@ export function RoadmapView() {
     setSelectedNodeDetails(null)
   }
 
+  const handleSave = async () => {
+    if (diagram) {
+      const diagramWidth = diagram.canvas?.width || 2000
+      const laneWidth = diagram.lanes.length > 0 ? diagramWidth / diagram.lanes.length : diagramWidth
+      const layoutNodes = layoutRoadmapNodes(diagram, { laneWidth, headerH: 64, rowGap: 90 })
+      
+      const updatedNodes = diagram.nodes.map(n => {
+        const layoutNode = layoutNodes.find(ln => ln.id === n.id)
+        if (layoutNode && (n.posX === undefined || n.posY === undefined)) {
+          return { ...n, posX: layoutNode.x, posY: layoutNode.y }
+        }
+        return n
+      })
+
+      const approvedDiagram: RoadmapDiagram = { ...diagram, nodes: updatedNodes, isApproved: true }
+      await saveRoadmapDiagram(approvedDiagram)
+      dispatch(fetchDiagram())
+      alert('Diagram saved successfully!')
+    }
+  }
+
+  const handleBackgroundClick = (worldX: number, worldY: number) => {
+    if (mode === 'edit' && pendingAddType) {
+      if (!diagram || diagram.lanes.length === 0) return
+      
+      const headerH = 64
+      const rowGap = 90
+      const diagramWidth = diagram.canvas?.width || 2000
+      const laneWidth = diagramWidth / Math.max(1, diagram.lanes.length)
+      
+      const laneIdx = Math.max(0, Math.min(diagram.lanes.length - 1, Math.floor(worldX / laneWidth)))
+      const laneId = diagram.lanes[laneIdx].id
+      
+      const level = Math.max(0, Math.round((worldY - headerH) / rowGap))
+      
+      const id = `new-node-${Date.now()}`
+      dispatch(addNode({ 
+        node: { 
+          id, 
+          title: 'New Node', 
+          type: pendingAddType as any, 
+          laneId, 
+          level,
+          label: 'New Node'
+        } 
+      }))
+      dispatch(setPendingAddType(null))
+      dispatch(setSelectedEditNodeId(id))
+    } else if (mode === 'edit') {
+      dispatch(setSelectedEditNodeId(null))
+    }
+  }
+
+  const handleDeleteNode = () => {
+    if (selectedEditNodeId) {
+      dispatch(removeNode(selectedEditNodeId))
+      dispatch(setSelectedEditNodeId(null))
+    } else if (selectedEditEdgeId) {
+      dispatch(removeEdge(selectedEditEdgeId))
+      dispatch(setSelectedEditEdgeId(null))
+    }
+  }
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if user is typing in an input field
+      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
+        return;
+      }
+
+      // Undo / Redo
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        dispatch(undo());
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        dispatch(redo());
+        return;
+      }
+
+      // Deletion
+      if (e.key === 'Backspace' || e.key === 'Delete') {
+        if (selectedEditNodeId || selectedEditEdgeId) {
+          e.preventDefault();
+          handleDeleteNode();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [dispatch, selectedEditNodeId, selectedEditEdgeId]);
+
+
   return (
     <main className="flex h-full flex-col bg-[var(--color-bg-body)]">
       <section className="relative flex-1 flex-col">
-        <div className="absolute top-4 right-4 z-10 flex items-center gap-1 rounded-md border border-border bg-card p-1 shadow-md">
+        {diagram && (
+          <div className="absolute right-8 top-6 z-20 flex items-center gap-2 pointer-events-none">
+            <div className={`px-4 py-1.5 rounded-full text-xs font-bold border shadow-md flex items-center gap-1.5 backdrop-blur-sm ${diagram.isApproved ? 'bg-emerald-50 text-emerald-700 border-emerald-200/60' : 'bg-amber-50 text-amber-700 border-amber-200/60'}`}>
+              <span className="text-base leading-none">{diagram.isApproved ? '✓' : '⚠️'}</span>
+              {diagram.isApproved ? 'Admin Approved' : 'Not Approved (Excel)'}
+            </div>
+          </div>
+        )}
+        <div className="absolute left-6 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-2 rounded-[2rem] border border-[var(--color-border)] bg-[var(--color-bg-card)]/90 backdrop-blur-md p-2 shadow-sm w-12">
+          {/* Mode Toggles */}
           <button
             type="button"
-            onClick={() => dispatch(setHandMode(!handMode))}
-            className={`grid size-7 place-items-center rounded-sm border text-sm font-semibold transition-colors ${handMode ? 'bg-primary text-primary-foreground border-primary' : 'bg-btn text-text-primary border-transparent'}`}
-            aria-label="Hand Mode"
-            title="Pan Tool"
+            onClick={() => { dispatch(setMode('view')); dispatch(setSelectedEditNodeId(null)); }}
+            className={`grid size-8 place-items-center rounded-full text-sm transition-colors ${mode === 'view' ? 'bg-primary text-primary-foreground' : 'text-text-primary hover:bg-btn'}`}
+            title="View Mode"
           >
-            ✋
+            <Eye size={18} />
           </button>
+          
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => dispatch(setMode('edit'))}
+              className={`grid size-8 place-items-center rounded-full text-sm transition-colors ${mode === 'edit' ? 'bg-primary text-primary-foreground' : 'text-text-primary hover:bg-btn'}`}
+              title="Edit Mode"
+            >
+              <Edit2 size={16} />
+            </button>
+          )}
+
+          <div className="h-[1px] w-6 bg-border my-[2px]" />
+
+          {/* Contextual Tools based on Mode */}
+          {mode === 'edit' ? (
+            <>
+              <button
+                onClick={() => dispatch(setPendingAddType(pendingAddType === 'process' ? null : 'process'))}
+                className={`grid size-8 place-items-center rounded-md border text-[#2c3e50] hover:border-border hover:bg-btn ${pendingAddType === 'process' ? 'border-border bg-btn text-[var(--color-primary)]' : 'border-transparent'}`}
+                title="Add Process Node"
+              >
+                <div className="w-[18px] h-[14px] border-[2px] border-current rounded-sm"></div>
+              </button>
+              <button
+                onClick={() => dispatch(setPendingAddType(pendingAddType === 'decision' ? null : 'decision'))}
+                className={`grid size-8 place-items-center rounded-md border text-[#2c3e50] hover:border-border hover:bg-btn ${pendingAddType === 'decision' ? 'border-border bg-btn text-[var(--color-primary)]' : 'border-transparent'}`}
+                title="Add Decision Node"
+              >
+                <div className="w-[14px] h-[14px] border-[2px] border-current transform rotate-45"></div>
+              </button>
+              <button
+                onClick={() => dispatch(setPendingAddType(pendingAddType === 'terminator' ? null : 'terminator'))}
+                className={`grid size-8 place-items-center rounded-md border text-[#2c3e50] hover:border-border hover:bg-btn ${pendingAddType === 'terminator' ? 'border-border bg-btn text-[var(--color-primary)]' : 'border-transparent'}`}
+                title="Add Terminator Node"
+              >
+                <div className="w-[18px] h-[10px] border-[2px] border-current rounded-[10px]"></div>
+              </button>
+              <div className="h-[1px] w-6 bg-border my-[2px]" />
+              <button
+                onClick={handleDeleteNode}
+                disabled={!selectedEditNodeId && !selectedEditEdgeId}
+                className="grid size-8 place-items-center rounded-md border border-transparent text-red-500 hover:border-red-100 hover:bg-red-50 disabled:opacity-40"
+                title="Delete Selected"
+              >
+                <Trash2 size={16} />
+              </button>
+              <button
+                onClick={handleSave}
+                className="grid size-8 place-items-center rounded-md border border-transparent text-[#2c3e50] hover:border-border hover:bg-btn"
+                title="Save Diagram"
+              >
+                <Save size={18} />
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => dispatch(setHandMode(!handMode))}
+                className={`grid size-8 place-items-center rounded-md border transition-colors ${handMode ? 'border-border bg-btn text-[var(--color-primary)]' : 'border-transparent text-[#2c3e50] hover:border-border hover:bg-btn'}`}
+                title="Pan Tool"
+              >
+                <Hand size={18} />
+              </button>
+              <button
+                type="button"
+                onClick={() => dispatch(setMagnifierMode(!magnifierMode))}
+                className={`grid size-8 place-items-center rounded-md border transition-colors ${magnifierMode ? 'border-border bg-btn text-[var(--color-primary)]' : 'border-transparent text-[#2c3e50] hover:border-border hover:bg-btn'}`}
+                title="Zoom Tool"
+              >
+                <Search size={18} />
+              </button>
+              <button
+                type="button"
+                onClick={() => dispatch(fetchDiagram())}
+                disabled={loading}
+                className="grid size-8 place-items-center rounded-md border border-transparent text-[#2c3e50] hover:border-border hover:bg-btn disabled:opacity-50"
+                title="Refresh Diagram"
+              >
+                <RefreshCw size={18} />
+              </button>
+            </>
+          )}
+
+          <div className="h-[1px] w-6 bg-border my-[2px]" />
+          
+          {/* Universal Zoom Controls */}
           <button
-            type="button"
-            onClick={() => dispatch(setMagnifierMode(!magnifierMode))}
-            className={`grid size-7 place-items-center rounded-sm border text-sm font-semibold transition-colors ${magnifierMode ? 'bg-primary text-primary-foreground border-primary' : 'bg-btn text-text-primary border-transparent'}`}
-            aria-label="Magnifier"
-            title="Zoom Tool"
-          >
-            🔍
-          </button>
-          <button
-            type="button"
-            onClick={() => dispatch(fetchDiagram())}
-            disabled={loading}
-            className="grid size-7 place-items-center rounded-sm border border-transparent bg-btn text-base font-bold text-text-primary hover:bg-border disabled:opacity-50"
-            aria-label="Refresh"
-            title="Refresh Diagram"
-          >
-            🔄
-          </button>
-          <div className="w-[1px] h-5 bg-border mx-1" />
-          <button
-            type="button"
             onClick={() => canvasRef.current?.zoomOut()}
-            className="grid size-7 place-items-center rounded-sm border border-transparent bg-btn text-base font-bold text-text-primary hover:bg-border"
+            className="grid size-8 place-items-center rounded-md border border-transparent text-[#2c3e50] hover:border-border hover:bg-btn"
             title="Zoom Out"
           >
-            −
+            <Minus size={18} />
           </button>
           <button
-            type="button"
             onClick={() => canvasRef.current?.reset()}
-            className="grid h-7 place-items-center rounded-sm border border-transparent bg-btn text-xs font-bold text-text-primary hover:bg-border px-2 w-auto"
-            title="Reset View"
+            className="grid size-8 place-items-center rounded-md border border-transparent text-[#2c3e50] hover:border-border hover:bg-btn"
+            title="Fit Screen"
           >
-            Reset
+            <Maximize size={16} />
           </button>
           <button
-            type="button"
             onClick={() => canvasRef.current?.zoomIn()}
-            className="grid size-7 place-items-center rounded-sm border border-transparent bg-btn text-base font-bold text-text-primary hover:bg-border"
+            className="grid size-8 place-items-center rounded-md border border-transparent text-[#2c3e50] hover:border-border hover:bg-btn"
             title="Zoom In"
           >
-            +
+            <Plus size={18} />
           </button>
         </div>
+
+        {mode === 'edit' && selectedEditNodeId && diagram?.nodes.find(n => n.id === selectedEditNodeId) && (() => {
+              const nd = diagram.nodes.find(n => n.id === selectedEditNodeId)!;
+              return (
+                <div className="absolute top-16 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 rounded-md border border-border bg-card p-2 shadow-md">
+                  <span className="text-xs font-semibold text-text-primary px-1">Editing:</span>
+                  <input 
+                    type="text" 
+                    value={nd.label || ''} 
+                    onChange={(e) => dispatch(updateNodeLabel({ id: selectedEditNodeId, label: e.target.value }))}
+                    className="text-xs border border-border bg-[var(--color-bg-body)] text-text-primary rounded px-2 py-1 w-40"
+                    placeholder="Node Label"
+                  />
+                  <select 
+                    className="text-xs border border-border bg-[var(--color-bg-body)] text-text-primary rounded px-2 py-1"
+                    value={nd.type}
+                    onChange={(e) => dispatch(updateNodeStyle({ id: selectedEditNodeId, type: e.target.value as any }))}
+                  >
+                    <option value="">Change Type...</option>
+                    <option value="process">Process (Blue)</option>
+                    <option value="process-red">Manual (Red)</option>
+                    <option value="process-purple">Legacy (Purple)</option>
+                    <option value="decision">Decision</option>
+                    <option value="data">Data</option>
+                    <option value="terminator">Terminator</option>
+                  </select>
+                </div>
+              )
+            })()}
 
         {diagram ? (
           <ProcessCanvas
@@ -116,6 +323,7 @@ export function RoadmapView() {
             onPersonClick={(p) => setSelectedPerson(p)}
             onNodeClick={handleNodeClick}
             onLaneClick={(l) => setSelectedLane(l)}
+            onBackgroundClick={handleBackgroundClick}
           />
         ) : loading ? (
           <div className="grid h-full place-items-center text-sm text-text-primary/70">Loading…</div>
