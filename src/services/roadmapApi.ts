@@ -9,14 +9,9 @@ const USE_MOCK = true;
 
 /**
  * Transforms the new Excel-format FlowchartNode[] into RoadmapDiagram.
- * * Derives:
- * - Lanes from unique `Role` values
- * - Vertical levels via topological sort (BFS)
- * - Node visual type from `Type`/`TypeText` and relationship structure
- * - Edges from `ToRelationshipY` and `ToRelationshipN`
+ * Derives Lanes, Vertical levels via BFS, Visual types, and Edges.
  */
 function transformFlowchartNodesToDiagram(nodes: FlowchartNode[]): RoadmapDiagram {
-  // --- 1. Build lanes from unique Role values ---
   const roleSet = new Set<string>();
   nodes.forEach(n => roleSet.add(n.Role));
   const roleToLaneId = new Map<string, string>();
@@ -29,11 +24,9 @@ function transformFlowchartNodesToDiagram(nodes: FlowchartNode[]): RoadmapDiagra
     laneOrder++;
   }
 
-  // --- 2. Compute vertical levels via topological sort (BFS from roots) ---
   const nodeMap = new Map<string, FlowchartNode>();
   nodes.forEach(n => nodeMap.set(n.L5ID, n));
 
-  // Build adjacency and in-degree
   const inDegree = new Map<string, number>();
   const children = new Map<string, string[]>();
   nodes.forEach(n => {
@@ -48,7 +41,6 @@ function transformFlowchartNodesToDiagram(nodes: FlowchartNode[]): RoadmapDiagra
     targets.forEach(t => inDegree.set(t, (inDegree.get(t) ?? 0) + 1));
   });
 
-  // BFS to assign levels
   const levelOf = new Map<string, number>();
   const queue: string[] = [];
   nodes.forEach(n => {
@@ -72,34 +64,31 @@ function transformFlowchartNodesToDiagram(nodes: FlowchartNode[]): RoadmapDiagra
       }
     }
   }
-  // Any nodes not reached (cycles/orphans) get a fallback level
+
   nodes.forEach(n => {
     if (!levelOf.has(n.L5ID)) levelOf.set(n.L5ID, queue.length);
   });
 
-  // Fallback: if NO edges exist at all, use array index so nodes spread vertically
   const hasAnyEdge = nodes.some(n => n.ToRelationshipY || n.ToRelationshipN);
   if (!hasAnyEdge) {
     nodes.forEach((n, idx) => levelOf.set(n.L5ID, idx));
   }
 
-  // --- 3. Build RoadmapNodes ---
   const roadmapNodes: RoadmapNode[] = [];
   nodes.forEach(n => {
     const role = n.Role;
     const laneId = roleToLaneId.get(role)!;
     const level = n.Lvl !== undefined ? n.Lvl : (levelOf.get(n.L5ID) ?? 0);
 
-    // Determine visual type
     let nodeType: string = 'process';
     if (n.Level === 'L4') {
-      nodeType = 'terminator'; // Section header → rounded-rect
+      nodeType = 'terminator';
     } else if (n.ToRelationshipY && n.ToRelationshipN) {
-      nodeType = 'decision'; // Has both Y and N branches
+      nodeType = 'decision';
     } else if (n.TypeText?.toLowerCase() === 'manual' || n.Type === 'M') {
-      nodeType = 'process-red'; // Manual step
+      nodeType = 'process-red';
     } else {
-      nodeType = 'process'; // SAP step (default blue)
+      nodeType = 'process';
     }
 
     roadmapNodes.push({
@@ -118,7 +107,6 @@ function transformFlowchartNodesToDiagram(nodes: FlowchartNode[]): RoadmapDiagra
     });
   });
 
-  // --- 3b. Bifurcation: spread Y/N branches horizontally ---
   const nodeById = new Map<string, RoadmapNode>();
   roadmapNodes.forEach(n => nodeById.set(n.id, n));
 
@@ -158,7 +146,6 @@ function transformFlowchartNodesToDiagram(nodes: FlowchartNode[]): RoadmapDiagra
     }
   });
 
-  // --- 4. Build edges from Y/N relationships ---
   const edges: RoadmapEdge[] = [];
   nodes.forEach(n => {
     if (n.ToRelationshipY && nodeMap.has(n.ToRelationshipY)) {
@@ -189,57 +176,15 @@ function transformFlowchartNodesToDiagram(nodes: FlowchartNode[]): RoadmapDiagra
   };
 }
 
-/**
- * Transforms RoadmapDiagram back into Excel-compatible flat JSON structure,
- * appending PosX and PosY coordinates.
- */
-function transformDiagramToFlowchartNodes(diagram: RoadmapDiagram): (FlowchartNode & { PosX?: number, PosY?: number })[] {
-  const lanesById = new Map<string, string>();
-  diagram.lanes.forEach(l => lanesById.set(l.id, l.title));
-
-  return diagram.nodes.map(n => {
-    const rawOutEdges = diagram.edges.filter(e => e.source === n.id);
-    let toY = "";
-    let toN = "";
-    if (rawOutEdges.length >= 1) toY = rawOutEdges[0].target;
-    if (rawOutEdges.length >= 2) toN = rawOutEdges[1].target;
-
-    const base = n.metadata || {};
-
-    return {
-      L5ID: n.id,
-      L5Text: n.label || n.title,
-      Level: base.originalLevel || (n.type === 'terminator' ? 'L4' : 'L5'),
-      Role: lanesById.get(n.laneId) || 'Unknown',
-      Type: base.type || ((n.type as string) === 'process-red' ? 'M' : 'E'),
-      TypeText: base.typeText || ((n.type as string) === 'process-red' ? 'Manual' : 'SAP'),
-      FromRelationship: "",
-      ToRelationshipY: toY,
-      ToRelationshipYText: rawOutEdges[0]?.label || "",
-      ToRelationshipN: toN,
-      ToRelationshipNText: rawOutEdges[1]?.label || "",
-      Lvl: n.level,
-      PosX: n.posX,
-      PosY: n.posY
-    };
-  });
-}
-
 export const getRoadmapDiagram = async (): Promise<RoadmapDiagram> => {
   if (USE_MOCK) {
-    // Simulate network delay to mimic real API
     await new Promise(resolve => setTimeout(resolve, 500));
-
-    // Transform the raw data to diagram directly (No Local Storage)
     return transformFlowchartNodesToDiagram(mockRawData);
   }
 
   const response = await fetch('/api/roadmap');
-  if (!response.ok) {
-    throw new Error('Failed to fetch roadmap diagram');
-  }
-  const nodes = await response.json();
-  return transformFlowchartNodesToDiagram(nodes);
+  if (!response.ok) throw new Error('Failed to fetch roadmap diagram');
+  return transformFlowchartNodesToDiagram(await response.json());
 };
 
 export const saveRoadmapDiagram = async (diagram: RoadmapDiagram): Promise<void> => {
@@ -267,19 +212,14 @@ export const saveRoadmapDiagram = async (diagram: RoadmapDiagram): Promise<void>
   */
 
   if (USE_MOCK) {
-    // Simulate API delay
     await new Promise(resolve => setTimeout(resolve, 500));
     console.log('Mock: Successfully sent diagram metadata to API payload:', diagram);
     return;
   }
 };
 
-/**
- * Fetch node details on demand (when node is clicked)
- */
 export const getNodeDetails = async (nodeId: string): Promise<NodeDetails> => {
   if (USE_MOCK) {
-    // Simulate network delay
     await new Promise(resolve => setTimeout(resolve, 300));
     const details = mockNodeDetails[nodeId];
     if (!details) {
@@ -289,16 +229,12 @@ export const getNodeDetails = async (nodeId: string): Promise<NodeDetails> => {
   }
 
   const response = await fetch(`/api/node/${nodeId}`);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch node details for ${nodeId}`);
-  }
+  if (!response.ok) throw new Error(`Failed to fetch node details for ${nodeId}`);
   return (await response.json()) as NodeDetails;
 };
 
-// --- RESTORED LEGEND FUNCTION ---
 export async function getRoadmapLegend(): Promise<LegendItem[]> {
   if (USE_MOCK) return mockRoadmapLegend;
-
   const res = await fetch('/api/roadmap-legend');
   if (!res.ok) throw new Error(`Failed to load roadmap legend: ${res.status}`);
   return (await res.json()) as LegendItem[];

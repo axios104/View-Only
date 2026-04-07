@@ -107,7 +107,6 @@ const diagramSlice = createSlice({
         }
       }
     },
-    // --- Lane Management ---
     addLane(state, action: PayloadAction<{ lane: RoadmapLane }>) {
       saveHistory(state)
       if (state.data) state.data.lanes.push(action.payload.lane)
@@ -131,12 +130,10 @@ const diagramSlice = createSlice({
         if (lane) {
           lane.title = action.payload.title
           if (action.payload.personId !== undefined) lane.personId = action.payload.personId
-          // @ts-ignore - Dynamically adding department if it doesn't exist on type
           if (action.payload.department !== undefined) lane.department = action.payload.department
         }
       }
     },
-    // --- Node Full Details Management ---
     updateNodeInfo(state, action: PayloadAction<{
       id: string, label: string, description?: string,
       tCode?: string, manual?: string, output?: string,
@@ -149,16 +146,10 @@ const diagramSlice = createSlice({
           node.label = action.payload.label
           node.title = action.payload.label
           node.description = action.payload.description
-
-          // @ts-ignore - Adding extended details dynamically
           node.tCode = action.payload.tCode
-          // @ts-ignore
           node.manual = action.payload.manual
-          // @ts-ignore
           node.output = action.payload.output
-          // @ts-ignore
           node.createPerson = action.payload.createPerson
-          // @ts-ignore
           node.changePerson = action.payload.changePerson
         }
       }
