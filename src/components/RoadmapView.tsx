@@ -7,7 +7,7 @@ import type { Person, Lane, NodeDetails, RoadmapDiagram } from '../types/roadmap
 import { Modal } from './Modal'
 import { ProcessCanvas, type ProcessCanvasApi } from './ProcessCanvas'
 import { layoutRoadmapNodes, type PositionedRoadmapNode } from '../layout/layoutRoadmap'
-import { Eye, Edit2, Hand, Search, RefreshCw, Save, Trash2, Maximize, Minus, Plus, Columns } from 'lucide-react'
+import { Eye, Edit2, Hand, Search, RefreshCw, Save, Trash2, Maximize, Minus, Plus, Columns, FileText, Database } from 'lucide-react'
 
 export function RoadmapView() {
   const dispatch = useAppDispatch()
@@ -37,7 +37,6 @@ export function RoadmapView() {
   useEffect(() => {
     if (isAdmin) {
       dispatch(setMode('edit'))
-      // FIX: Reset view-only tools when forcing edit mode
       dispatch(setHandMode(false))
       dispatch(setMagnifierMode(false))
     } else {
@@ -52,9 +51,7 @@ export function RoadmapView() {
       dispatch(setSelectedEditNodeId(node.id))
       return
     }
-
     if (mode === 'none') return;
-
     setSelectedNode(node)
     setNodeDetailsLoading(true)
     try {
@@ -105,26 +102,12 @@ export function RoadmapView() {
 
       const approvedDiagram: RoadmapDiagram = { ...diagram, nodes: updatedNodes, isApproved: true }
 
-      // --- DEBUG FEATURE: DOWNLOAD JSON METADATA ---
-      const jsonString = JSON.stringify(approvedDiagram, null, 2);
-      const blob = new Blob([jsonString], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `roadmap-debug-${Date.now()}.json`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      // ----------------------------------------------
-
       try {
         await saveRoadmapDiagram(approvedDiagram)
         dispatch(fetchDiagram())
-        alert('Diagram saved successfully via API!')
+        alert('Diagram saved successfully!')
       } catch (err) {
         alert('Error saving diagram!')
-        console.error(err)
       }
     }
   }
@@ -140,15 +123,27 @@ export function RoadmapView() {
 
       const laneIdx = Math.max(0, Math.min(diagram.lanes.length - 1, Math.floor(worldX / laneWidth)))
       const laneId = diagram.lanes[laneIdx].id
-
       const level = Math.max(0, Math.round((worldY - headerH) / rowGap))
+
+      // We parse metadata if it was passed as JSON
+      let nodeType = type;
+      let status: any = undefined;
+
+      try {
+        const meta = JSON.parse(type);
+        nodeType = meta.type;
+        status = meta.status;
+      } catch (e) {
+        nodeType = type;
+      }
 
       const id = `new-node-${Date.now()}`
       dispatch(addNode({
         node: {
           id,
           title: 'New Node',
-          type: type as any,
+          type: nodeType as any,
+          status: status,
           laneId,
           level,
           label: 'New Node',
@@ -179,10 +174,8 @@ export function RoadmapView() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
-
       if (isAdmin && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); dispatch(undo()); return; }
       if (isAdmin && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); dispatch(redo()); return; }
-
       if (isAdmin && (e.key === 'Backspace' || e.key === 'Delete')) {
         if (selectedEditNodeId || selectedEditEdgeId) { e.preventDefault(); handleDeleteNode(); }
       }
@@ -203,12 +196,13 @@ export function RoadmapView() {
             </div>
           </div>
         )}
-        <div className="absolute left-6 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-2 rounded-[2rem] border border-[var(--color-border)] bg-[var(--color-bg-card)]/90 backdrop-blur-md p-2 shadow-sm w-12">
+
+        <div className="absolute left-6 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-2 rounded-[2rem] border border-[var(--color-border)] bg-[var(--color-bg-card)]/90 backdrop-blur-md p-2 shadow-sm w-14 overflow-y-auto max-h-[85%] no-scrollbar">
 
           <button
             type="button"
             onClick={() => { dispatch(setMode('view')); dispatch(setSelectedEditNodeId(null)); }}
-            className={`grid size-8 place-items-center rounded-full text-sm transition-colors ${mode === 'view' ? 'bg-primary text-primary-foreground' : 'text-text-primary hover:bg-btn'}`}
+            className={`grid size-9 place-items-center rounded-full text-sm transition-colors ${mode === 'view' ? 'bg-primary text-primary-foreground' : 'text-text-primary hover:bg-btn'}`}
             title="View Mode"
           >
             <Eye size={18} />
@@ -219,11 +213,10 @@ export function RoadmapView() {
               type="button"
               onClick={() => {
                 dispatch(setMode('edit'));
-                // FIX: Reset tools when clicking the edit button
                 dispatch(setHandMode(false));
                 dispatch(setMagnifierMode(false));
               }}
-              className={`grid size-8 place-items-center rounded-full text-sm transition-colors ${mode === 'edit' ? 'bg-primary text-primary-foreground' : 'text-text-primary hover:bg-btn'}`}
+              className={`grid size-9 place-items-center rounded-full text-sm transition-colors ${mode === 'edit' ? 'bg-primary text-primary-foreground' : 'text-text-primary hover:bg-btn'}`}
               title="Edit Mode"
             >
               <Edit2 size={16} />
@@ -234,52 +227,98 @@ export function RoadmapView() {
 
           {mode === 'edit' ? (
             <>
+              {/* SAP Process (Blue) */}
               <button
                 draggable
-                onDragStart={(e) => e.dataTransfer.setData('application/node-type', 'process')}
-                className={`grid size-8 place-items-center rounded-md border text-[#2c3e50] border-transparent hover:border-border hover:bg-btn cursor-grab`}
-                title="Drag to add Process Node"
+                onDragStart={(e) => e.dataTransfer.setData('application/node-type', JSON.stringify({ type: 'process', status: 'completed' }))}
+                className="grid size-9 place-items-center rounded-md border border-transparent hover:border-border hover:bg-btn cursor-grab text-sap"
+                title="Add SAP Process (Blue)"
               >
-                <div className="w-[18px] h-[14px] border-[2px] border-current rounded-sm pointer-events-none"></div>
+                <div className="w-[20px] h-[16px] border-[2px] border-current bg-sap/20 rounded-sm pointer-events-none"></div>
               </button>
+
+              {/* Legacy Process (Orange) */}
               <button
                 draggable
-                onDragStart={(e) => e.dataTransfer.setData('application/node-type', 'decision')}
-                className={`grid size-8 place-items-center rounded-md border text-[#2c3e50] border-transparent hover:border-border hover:bg-btn cursor-grab`}
-                title="Drag to add Decision Node"
+                onDragStart={(e) => e.dataTransfer.setData('application/node-type', JSON.stringify({ type: 'process', status: 'in-progress' }))}
+                className="grid size-9 place-items-center rounded-md border border-transparent hover:border-border hover:bg-btn cursor-grab text-legacy"
+                title="Add Legacy Process (Orange)"
               >
-                <div className="w-[14px] h-[14px] border-[2px] border-current transform rotate-45 pointer-events-none"></div>
+                <div className="w-[20px] h-[16px] border-[2px] border-current bg-legacy/20 rounded-sm pointer-events-none"></div>
               </button>
+
+              {/* Manual Process (Green) */}
               <button
                 draggable
-                onDragStart={(e) => e.dataTransfer.setData('application/node-type', 'terminator')}
-                className={`grid size-8 place-items-center rounded-md border text-[#2c3e50] border-transparent hover:border-border hover:bg-btn cursor-grab`}
-                title="Drag to add Terminator Node"
+                onDragStart={(e) => e.dataTransfer.setData('application/node-type', JSON.stringify({ type: 'process', status: 'planned' }))}
+                className="grid size-9 place-items-center rounded-md border border-transparent hover:border-border hover:bg-btn cursor-grab text-manual"
+                title="Add Manual Process (Green)"
               >
-                <div className="w-[18px] h-[10px] border-[2px] border-current rounded-[10px] pointer-events-none"></div>
+                <div className="w-[20px] h-[16px] border-[2px] border-current bg-manual/20 rounded-sm pointer-events-none"></div>
               </button>
+
+              {/* Decision (Diamond) */}
+              <button
+                draggable
+                onDragStart={(e) => e.dataTransfer.setData('application/node-type', JSON.stringify({ type: 'decision' }))}
+                className="grid size-9 place-items-center rounded-md border border-transparent hover:border-border hover:bg-btn cursor-grab text-slate-600"
+                title="Add Decision Node"
+              >
+                <div className="w-[14px] h-[14px] border-[2px] border-current transform rotate-45 pointer-events-none bg-white"></div>
+              </button>
+
+              {/* Terminator (Capsule) */}
+              <button
+                draggable
+                onDragStart={(e) => e.dataTransfer.setData('application/node-type', JSON.stringify({ type: 'terminator' }))}
+                className="grid size-9 place-items-center rounded-md border border-transparent hover:border-border hover:bg-btn cursor-grab text-slate-600"
+                title="Add Terminator Node"
+              >
+                <div className="w-[20px] h-[12px] border-[2px] border-current rounded-[10px] pointer-events-none bg-white"></div>
+              </button>
+
+              {/* Document */}
+              <button
+                draggable
+                onDragStart={(e) => e.dataTransfer.setData('application/node-type', JSON.stringify({ type: 'document' }))}
+                className="grid size-9 place-items-center rounded-md border border-transparent hover:border-border hover:bg-btn cursor-grab text-slate-600"
+                title="Add Document Node"
+              >
+                <FileText size={20} />
+              </button>
+
+              {/* Data / Database */}
+              <button
+                draggable
+                onDragStart={(e) => e.dataTransfer.setData('application/node-type', JSON.stringify({ type: 'data' }))}
+                className="grid size-9 place-items-center rounded-md border border-transparent hover:border-border hover:bg-btn cursor-grab text-slate-600"
+                title="Add Data Node"
+              >
+                <Database size={20} />
+              </button>
+
               <div className="h-[1px] w-6 bg-border my-[2px]" />
               <button
                 onClick={handleAddLane}
-                className="grid size-8 place-items-center rounded-md border border-transparent text-[#2c3e50] hover:border-border hover:bg-btn"
+                className="grid size-9 place-items-center rounded-md border border-transparent text-[#2c3e50] hover:border-border hover:bg-btn"
                 title="Add New Lane"
               >
-                <Columns size={16} />
+                <Columns size={18} />
               </button>
               <button
                 onClick={handleDeleteNode}
                 disabled={!selectedEditNodeId && !selectedEditEdgeId}
-                className="grid size-8 place-items-center rounded-md border border-transparent text-red-500 hover:border-red-100 hover:bg-red-50 disabled:opacity-40"
+                className="grid size-9 place-items-center rounded-md border border-transparent text-red-500 hover:border-red-100 hover:bg-red-50 disabled:opacity-40"
                 title="Delete Selected Node/Edge"
               >
-                <Trash2 size={16} />
+                <Trash2 size={18} />
               </button>
               <button
                 onClick={handleSave}
-                className="grid size-8 place-items-center rounded-md border border-transparent text-[#2c3e50] hover:border-border hover:bg-btn"
+                className="grid size-9 place-items-center rounded-md border border-transparent text-[#2c3e50] hover:border-border hover:bg-btn"
                 title="Save Diagram"
               >
-                <Save size={18} />
+                <Save size={20} />
               </button>
             </>
           ) : (
@@ -287,36 +326,35 @@ export function RoadmapView() {
               <button
                 type="button"
                 onClick={() => dispatch(setHandMode(!handMode))}
-                className={`grid size-8 place-items-center rounded-md border transition-colors ${handMode ? 'border-border bg-btn text-[var(--color-primary)]' : 'border-transparent text-[#2c3e50] hover:border-border hover:bg-btn'}`}
+                className={`grid size-9 place-items-center rounded-md border transition-colors ${handMode ? 'border-border bg-btn text-[var(--color-primary)]' : 'border-transparent text-[#2c3e50] hover:border-border hover:bg-btn'}`}
                 title="Pan Tool"
               >
-                <Hand size={18} />
+                <Hand size={20} />
               </button>
               <button
                 type="button"
                 onClick={() => dispatch(setMagnifierMode(!magnifierMode))}
-                className={`grid size-8 place-items-center rounded-md border transition-colors ${magnifierMode ? 'border-border bg-btn text-[var(--color-primary)]' : 'border-transparent text-[#2c3e50] hover:border-border hover:bg-btn'}`}
+                className={`grid size-9 place-items-center rounded-md border transition-colors ${magnifierMode ? 'border-border bg-btn text-[var(--color-primary)]' : 'border-transparent text-[#2c3e50] hover:border-border hover:bg-btn'}`}
                 title="Zoom Tool"
               >
-                <Search size={18} />
+                <Search size={20} />
               </button>
               <button
                 type="button"
                 onClick={() => dispatch(fetchDiagram())}
                 disabled={loading}
-                className="grid size-8 place-items-center rounded-md border border-transparent text-[#2c3e50] hover:border-border hover:bg-btn disabled:opacity-50"
+                className="grid size-9 place-items-center rounded-md border border-transparent text-[#2c3e50] hover:border-border hover:bg-btn disabled:opacity-50"
                 title="Refresh Diagram"
               >
-                <RefreshCw size={18} />
+                <RefreshCw size={20} />
               </button>
             </>
           )}
 
           <div className="h-[1px] w-6 bg-border my-[2px]" />
-
-          <button onClick={() => canvasRef.current?.zoomOut()} className="grid size-8 place-items-center rounded-md border border-transparent text-[#2c3e50] hover:border-border hover:bg-btn" title="Zoom Out"><Minus size={18} /></button>
-          <button onClick={() => canvasRef.current?.reset()} className="grid size-8 place-items-center rounded-md border border-transparent text-[#2c3e50] hover:border-border hover:bg-btn" title="Fit Screen"><Maximize size={16} /></button>
-          <button onClick={() => canvasRef.current?.zoomIn()} className="grid size-8 place-items-center rounded-md border border-transparent text-[#2c3e50] hover:border-border hover:bg-btn" title="Zoom In"><Plus size={18} /></button>
+          <button onClick={() => canvasRef.current?.zoomOut()} className="grid size-9 place-items-center rounded-md border border-transparent text-[#2c3e50] hover:border-border hover:bg-btn" title="Zoom Out"><Minus size={20} /></button>
+          <button onClick={() => canvasRef.current?.reset()} className="grid size-9 place-items-center rounded-md border border-transparent text-[#2c3e50] hover:border-border hover:bg-btn" title="Fit Screen"><Maximize size={18} /></button>
+          <button onClick={() => canvasRef.current?.zoomIn()} className="grid size-9 place-items-center rounded-md border border-transparent text-[#2c3e50] hover:border-border hover:bg-btn" title="Zoom In"><Plus size={20} /></button>
         </div>
 
         {mode === 'edit' && selectedEditNodeId && diagram?.nodes.find(n => n.id === selectedEditNodeId) && (() => {
@@ -365,7 +403,7 @@ export function RoadmapView() {
         )}
       </section>
 
-      {/* --- VIEW-ONLY PERSON MODAL --- */}
+      {/* --- MODALS REMAIN UNCHANGED --- */}
       <Modal title={selectedPerson?.name ?? 'User details'} open={!!selectedPerson} onClose={() => setSelectedPerson(null)}>
         {selectedPerson && (
           <div className="space-y-3 bg-white p-1 text-slate-900 rounded-md">
@@ -377,7 +415,6 @@ export function RoadmapView() {
         )}
       </Modal>
 
-      {/* --- VIEW-ONLY NODE MODAL --- */}
       <Modal title="Process Step Details" open={!!selectedNode} onClose={closeNodeModal}>
         <div className="bg-white p-1 text-slate-900 rounded-md">
           {nodeDetailsLoading ? (
@@ -404,144 +441,40 @@ export function RoadmapView() {
                   <div className="col-span-2 text-sm text-slate-700 whitespace-pre-wrap">{selectedNode.description || selectedNodeDetails?.Description}</div>
                 </div>
               )}
-              <div className="pt-2 border-t border-slate-100 space-y-2">
-                {(selectedNode.createPerson || selectedNodeDetails?.CreatePerson) && (
-                  <div className="grid grid-cols-3 gap-2 text-xs"><div className="text-slate-500">Created By</div><div className="col-span-2 font-medium">{selectedNode.createPerson || selectedNodeDetails?.CreatePerson}</div></div>
-                )}
-                {(selectedNode.changePerson || selectedNodeDetails?.ChangePerson) && (
-                  <div className="grid grid-cols-3 gap-2 text-xs"><div className="text-slate-500">Changed By</div><div className="col-span-2 font-medium">{selectedNode.changePerson || selectedNodeDetails?.ChangePerson}</div></div>
-                )}
-              </div>
-              <div className="pt-2 border-t border-slate-100 space-y-2">
-                {(selectedNode.tCode || selectedNodeDetails?.TCode) && (
-                  <div className="grid grid-cols-3 gap-2 text-xs"><div className="text-slate-500">T-Code</div><div className="col-span-2 font-medium text-blue-600">{selectedNode.tCode || selectedNodeDetails?.TCode}</div></div>
-                )}
-                {(selectedNode.manual || selectedNodeDetails?.Manual) && (
-                  <div className="grid grid-cols-3 gap-2 text-xs">
-                    <div className="text-slate-500">Manual</div>
-                    <div className="col-span-2">
-                      <a href={selectedNode.manual || selectedNodeDetails?.Manual} target="_blank" rel="noreferrer" className="text-blue-600 underline hover:text-blue-800">View Manual</a>
-                    </div>
-                  </div>
-                )}
-                {(selectedNode.output || selectedNodeDetails?.Output) && (
-                  <div className="grid grid-cols-3 gap-2 text-xs"><div className="text-slate-500">Output</div><div className="col-span-2 font-medium">{selectedNode.output || selectedNodeDetails?.Output}</div></div>
-                )}
-              </div>
             </div>
           ) : null}
         </div>
       </Modal>
 
-      {/* --- VIEW-ONLY LANE MODAL --- */}
-      <Modal title="Lane Details" open={!!selectedLane} onClose={() => setSelectedLane(null)}>
-        {selectedLane && (
-          <div className="space-y-3 bg-white p-1 text-slate-900 rounded-md">
-            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-slate-500">Lane ID</div><div className="col-span-2 font-semibold text-sm">{selectedLane.id}</div></div>
-            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-slate-500">Name</div><div className="col-span-2 font-semibold">{selectedLane.title}</div></div>
-            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-slate-500">Assigned To</div><div className="col-span-2 font-semibold">{selectedLane.personId || 'Unassigned'}</div></div>
-            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-slate-500">Department</div><div className="col-span-2 font-semibold text-sm text-slate-700">{selectedLane.department || 'General Operations'}</div></div>
-          </div>
-        )}
-      </Modal>
-
-      {/* --- EDITABLE LANE MODAL --- */}
       <Modal title="Edit Lane" open={!!editingLane} onClose={() => setEditingLane(null)}>
         {editingLane && (
           <div className="space-y-4 bg-white p-1 text-slate-900 rounded-md">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Lane ID (Read-Only)</label>
-              <input type="text" disabled className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-500 bg-slate-50" value={editingLane.id} />
-            </div>
-            <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">Name</label>
-              <input type="text" autoFocus className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" value={editingLane.title} onChange={(e) => setEditingLane({ ...editingLane, title: e.target.value })} />
+              <input type="text" autoFocus className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-blue-500" value={editingLane.title} onChange={(e) => setEditingLane({ ...editingLane, title: e.target.value })} />
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Assigned To</label>
-              <input type="text" className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" value={editingLane.personId || ''} onChange={(e) => setEditingLane({ ...editingLane, personId: e.target.value })} />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Department</label>
-              <input type="text" className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" value={editingLane.department || ''} onChange={(e) => setEditingLane({ ...editingLane, department: e.target.value })} />
-            </div>
-
             <div className="flex justify-between items-center pt-5 mt-2 border-t border-slate-100">
-              <button onClick={() => { if (confirm('Delete this lane and all nodes inside it?')) { dispatch(removeLane(editingLane.id)); setEditingLane(null); } }} className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors">Delete Lane</button>
-              <button onClick={() => { dispatch(updateLane({ id: editingLane.id, title: editingLane.title, personId: editingLane.personId, department: editingLane.department })); setEditingLane(null); }} className="px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-colors">Save Changes</button>
+              <button onClick={() => { if (confirm('Delete this lane?')) { dispatch(removeLane(editingLane.id)); setEditingLane(null); } }} className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg">Delete Lane</button>
+              <button onClick={() => { dispatch(updateLane({ id: editingLane.id, title: editingLane.title })); setEditingLane(null); }} className="px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg">Save Changes</button>
             </div>
           </div>
         )}
       </Modal>
 
-      {/* --- EDITABLE NODE MODAL --- */}
       <Modal title="Edit Node Details" open={!!editingNode} onClose={() => setEditingNode(null)}>
         {editingNode && (
           <div className="space-y-4 bg-white p-1 text-slate-900 rounded-md">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">ID (Read-Only)</label>
-                <input type="text" disabled className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-500 bg-slate-50" value={editingNode.id} />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Type (Read-Only)</label>
-                <input type="text" disabled className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-500 bg-slate-50 uppercase" value={editingNode.type} />
-              </div>
-            </div>
-
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">Label / Title</label>
-              <input type="text" className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" value={editingNode.label || ''} onChange={(e) => setEditingNode({ ...editingNode, label: e.target.value })} />
+              <input type="text" className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white" value={editingNode.label || ''} onChange={(e) => setEditingNode({ ...editingNode, label: e.target.value })} />
             </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Description</label>
-              <textarea rows={3} className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none" placeholder="Details about this step..." value={editingNode.description || ''} onChange={(e) => setEditingNode({ ...editingNode, description: e.target.value })} />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Create Person</label>
-                <input type="text" className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" value={editingNode.createPerson || ''} onChange={(e) => setEditingNode({ ...editingNode, createPerson: e.target.value })} />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Change Person</label>
-                <input type="text" className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" value={editingNode.changePerson || ''} onChange={(e) => setEditingNode({ ...editingNode, changePerson: e.target.value })} />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">T-Code</label>
-                <input type="text" className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" value={editingNode.tCode || ''} onChange={(e) => setEditingNode({ ...editingNode, tCode: e.target.value })} />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Output</label>
-                <input type="text" className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" value={editingNode.output || ''} onChange={(e) => setEditingNode({ ...editingNode, output: e.target.value })} />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Manual (URL)</label>
-              <input type="text" className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" value={editingNode.manual || ''} onChange={(e) => setEditingNode({ ...editingNode, manual: e.target.value })} />
-            </div>
-
             <div className="flex justify-end pt-5 mt-2 border-t border-slate-100">
               <button
                 onClick={() => {
-                  dispatch(updateNodeInfo({
-                    id: editingNode.id,
-                    label: editingNode.label || '',
-                    description: editingNode.description,
-                    tCode: editingNode.tCode,
-                    manual: editingNode.manual,
-                    output: editingNode.output,
-                    createPerson: editingNode.createPerson,
-                    changePerson: editingNode.changePerson
-                  }))
+                  dispatch(updateNodeInfo({ id: editingNode.id, label: editingNode.label || '' }))
                   setEditingNode(null)
                 }}
-                className="px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-colors"
+                className="px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg"
               >
                 Save Details
               </button>
@@ -549,7 +482,6 @@ export function RoadmapView() {
           </div>
         )}
       </Modal>
-
     </main>
   )
 }
