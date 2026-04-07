@@ -20,7 +20,7 @@ export function RoadmapView() {
   const [nodeDetailsLoading, setNodeDetailsLoading] = useState(false)
   const [selectedLane, setSelectedLane] = useState<Lane | null>(null)
 
-  // NEW: Editable modals state
+  // Editable modals state
   const [editingLane, setEditingLane] = useState<Lane | null>(null)
   const [editingNode, setEditingNode] = useState<PositionedRoadmapNode | null>(null)
 
@@ -37,6 +37,9 @@ export function RoadmapView() {
   useEffect(() => {
     if (isAdmin) {
       dispatch(setMode('edit'))
+      // FIX: Reset view-only tools when forcing edit mode
+      dispatch(setHandMode(false))
+      dispatch(setMagnifierMode(false))
     } else {
       dispatch(setMode('view'))
       dispatch(setSelectedEditNodeId(null))
@@ -65,7 +68,6 @@ export function RoadmapView() {
     }
   }
 
-  // NEW: Lane click handler (opens edit modal in edit mode)
   const handleLaneClick = (lane: Lane) => {
     if (mode === 'edit') {
       setEditingLane(lane)
@@ -79,7 +81,6 @@ export function RoadmapView() {
     setSelectedNodeDetails(null)
   }
 
-  // NEW: Add lane action
   const handleAddLane = () => {
     if (!diagram) return;
     const newLaneId = `lane-${Date.now()}`
@@ -102,16 +103,15 @@ export function RoadmapView() {
         return n
       })
 
-      // This is the exact metadata object that is sent to the API
       const approvedDiagram: RoadmapDiagram = { ...diagram, nodes: updatedNodes, isApproved: true }
 
       // --- DEBUG FEATURE: DOWNLOAD JSON METADATA ---
-      const jsonString = JSON.stringify(approvedDiagram, null, 2); // Format with 2 spaces for readability
+      const jsonString = JSON.stringify(approvedDiagram, null, 2);
       const blob = new Blob([jsonString], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `roadmap-debug-${Date.now()}.json`; // Name of the downloaded file
+      link.download = `roadmap-debug-${Date.now()}.json`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -178,29 +178,15 @@ export function RoadmapView() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
-        return;
-      }
+      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
 
-      if (isAdmin && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
-        e.preventDefault();
-        dispatch(undo());
-        return;
-      }
-      if (isAdmin && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
-        e.preventDefault();
-        dispatch(redo());
-        return;
-      }
+      if (isAdmin && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); dispatch(undo()); return; }
+      if (isAdmin && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); dispatch(redo()); return; }
 
       if (isAdmin && (e.key === 'Backspace' || e.key === 'Delete')) {
-        if (selectedEditNodeId || selectedEditEdgeId) {
-          e.preventDefault();
-          handleDeleteNode();
-        }
+        if (selectedEditNodeId || selectedEditEdgeId) { e.preventDefault(); handleDeleteNode(); }
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [dispatch, selectedEditNodeId, selectedEditEdgeId, isAdmin]);
@@ -213,7 +199,7 @@ export function RoadmapView() {
           <div className="absolute right-8 top-6 z-20 flex items-center gap-4 pointer-events-none">
             <div className={`px-4 py-1.5 rounded-full text-xs font-bold border shadow-md flex items-center gap-1.5 backdrop-blur-sm ${diagram.isApproved ? 'bg-emerald-50 text-emerald-700 border-emerald-200/60' : 'bg-amber-50 text-amber-700 border-amber-200/60'}`}>
               <span className="text-base leading-none">{diagram.isApproved ? '✓' : '⚠️'}</span>
-              {diagram.isApproved ? 'Admin Approved' : 'Not Approved (Excel)'}
+              {diagram.isApproved ? 'Admin Approved' : 'Not Approved'}
             </div>
           </div>
         )}
@@ -231,7 +217,12 @@ export function RoadmapView() {
           {isAdmin && (
             <button
               type="button"
-              onClick={() => dispatch(setMode('edit'))}
+              onClick={() => {
+                dispatch(setMode('edit'));
+                // FIX: Reset tools when clicking the edit button
+                dispatch(setHandMode(false));
+                dispatch(setMagnifierMode(false));
+              }}
               className={`grid size-8 place-items-center rounded-full text-sm transition-colors ${mode === 'edit' ? 'bg-primary text-primary-foreground' : 'text-text-primary hover:bg-btn'}`}
               title="Edit Mode"
             >
@@ -323,27 +314,9 @@ export function RoadmapView() {
 
           <div className="h-[1px] w-6 bg-border my-[2px]" />
 
-          <button
-            onClick={() => canvasRef.current?.zoomOut()}
-            className="grid size-8 place-items-center rounded-md border border-transparent text-[#2c3e50] hover:border-border hover:bg-btn"
-            title="Zoom Out"
-          >
-            <Minus size={18} />
-          </button>
-          <button
-            onClick={() => canvasRef.current?.reset()}
-            className="grid size-8 place-items-center rounded-md border border-transparent text-[#2c3e50] hover:border-border hover:bg-btn"
-            title="Fit Screen"
-          >
-            <Maximize size={16} />
-          </button>
-          <button
-            onClick={() => canvasRef.current?.zoomIn()}
-            className="grid size-8 place-items-center rounded-md border border-transparent text-[#2c3e50] hover:border-border hover:bg-btn"
-            title="Zoom In"
-          >
-            <Plus size={18} />
-          </button>
+          <button onClick={() => canvasRef.current?.zoomOut()} className="grid size-8 place-items-center rounded-md border border-transparent text-[#2c3e50] hover:border-border hover:bg-btn" title="Zoom Out"><Minus size={18} /></button>
+          <button onClick={() => canvasRef.current?.reset()} className="grid size-8 place-items-center rounded-md border border-transparent text-[#2c3e50] hover:border-border hover:bg-btn" title="Fit Screen"><Maximize size={16} /></button>
+          <button onClick={() => canvasRef.current?.zoomIn()} className="grid size-8 place-items-center rounded-md border border-transparent text-[#2c3e50] hover:border-border hover:bg-btn" title="Zoom In"><Plus size={18} /></button>
         </div>
 
         {mode === 'edit' && selectedEditNodeId && diagram?.nodes.find(n => n.id === selectedEditNodeId) && (() => {
@@ -374,7 +347,7 @@ export function RoadmapView() {
             diagram={diagram}
             onPersonClick={(p) => setSelectedPerson(p)}
             onNodeClick={handleNodeClick}
-            onLaneClick={handleLaneClick} // Uses the new handler 
+            onLaneClick={handleLaneClick}
             onBackgroundClick={handleBackgroundClick}
             onDropNode={handleDropNode}
           />
@@ -385,12 +358,6 @@ export function RoadmapView() {
             <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-6 py-5 text-sm text-red-600">
               <div className="font-semibold">Error loading diagram</div>
               <div className="mt-1">{error}</div>
-              <button
-                onClick={() => dispatch(fetchDiagram())}
-                className="mt-3 px-3 py-1 bg-red-600 text-white rounded text-xs font-semibold hover:bg-red-700"
-              >
-                Try Again
-              </button>
             </div>
           </div>
         ) : (
@@ -398,198 +365,179 @@ export function RoadmapView() {
         )}
       </section>
 
-      {/* --- EXISTING VIEW-ONLY MODALS --- */}
+      {/* --- VIEW-ONLY PERSON MODAL --- */}
       <Modal title={selectedPerson?.name ?? 'User details'} open={!!selectedPerson} onClose={() => setSelectedPerson(null)}>
         {selectedPerson && (
-          <div className="space-y-2">
-            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-text-primary/70">Role</div><div className="col-span-2 font-semibold">{selectedPerson.role}</div></div>
-            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-text-primary/70">Email</div><div className="col-span-2 font-semibold">{selectedPerson.email}</div></div>
-            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-text-primary/70">Team</div><div className="col-span-2 font-semibold">{selectedPerson.team}</div></div>
-            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-text-primary/70">Location</div><div className="col-span-2 font-semibold">{selectedPerson.location}</div></div>
+          <div className="space-y-3 bg-white p-1 text-slate-900 rounded-md">
+            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-slate-500">Role</div><div className="col-span-2 font-semibold">{selectedPerson.role || '—'}</div></div>
+            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-slate-500">Email</div><div className="col-span-2 font-semibold">{selectedPerson.email || '—'}</div></div>
+            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-slate-500">Team</div><div className="col-span-2 font-semibold">{selectedPerson.team || '—'}</div></div>
+            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-slate-500">Location</div><div className="col-span-2 font-semibold">{selectedPerson.location || '—'}</div></div>
           </div>
         )}
       </Modal>
 
+      {/* --- VIEW-ONLY NODE MODAL --- */}
       <Modal title="Process Step Details" open={!!selectedNode} onClose={closeNodeModal}>
-        {nodeDetailsLoading ? (
-          <div className="flex items-center justify-center py-6">
-            <div className="text-sm text-text-primary/70">Loading node details…</div>
-          </div>
-        ) : selectedNodeDetails ? (
-          <div className="space-y-3">
-            <div className="grid grid-cols-3 gap-2">
-              <div className="text-xs text-text-primary/70">Node ID</div>
-              <div className="col-span-2 font-semibold text-sm">{selectedNodeDetails.NodeID}</div>
+        <div className="bg-white p-1 text-slate-900 rounded-md">
+          {nodeDetailsLoading ? (
+            <div className="flex items-center justify-center py-6">
+              <div className="text-sm text-slate-500">Loading node details…</div>
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              <div className="text-xs text-text-primary/70">Type</div>
-              <div className="col-span-2">
-                <span className="inline-block bg-primary/10 text-primary px-2 py-1 rounded text-xs font-semibold uppercase">
-                  {selectedNodeDetails.Type}
-                </span>
+          ) : selectedNode ? (
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-2">
+                <div className="text-xs text-slate-500">ID</div>
+                <div className="col-span-2 font-semibold text-sm">{selectedNode.id}</div>
               </div>
-            </div>
-            {selectedNodeDetails.Description && (
-              <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border">
-                <div className="text-xs text-text-primary/70">Description</div>
-                <div className="col-span-2 text-sm text-text-primary/80 whitespace-pre-wrap">
-                  {selectedNodeDetails.Description}
-                </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="text-xs text-slate-500">Type</div>
+                <div className="col-span-2"><span className="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-semibold uppercase">{selectedNode.type || selectedNodeDetails?.Type || 'PROCESS'}</span></div>
               </div>
-            )}
-            <div className="pt-2 border-t border-border space-y-2">
-              {selectedNodeDetails.CreateDate && (
-                <div className="grid grid-cols-3 gap-2 text-xs">
-                  <div className="text-text-primary/70">Created</div>
-                  <div className="col-span-2 font-medium">{selectedNodeDetails.CreateDate}</div>
+              <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100">
+                <div className="text-xs text-slate-500">Label</div>
+                <div className="col-span-2 font-semibold whitespace-pre-wrap">{selectedNode.label}</div>
+              </div>
+              {(selectedNode.description || selectedNodeDetails?.Description) && (
+                <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100">
+                  <div className="text-xs text-slate-500">Description</div>
+                  <div className="col-span-2 text-sm text-slate-700 whitespace-pre-wrap">{selectedNode.description || selectedNodeDetails?.Description}</div>
                 </div>
               )}
-              {selectedNodeDetails.ChangeDate && (
-                <div className="grid grid-cols-3 gap-2 text-xs">
-                  <div className="text-text-primary/70">Changed</div>
-                  <div className="col-span-2 font-medium">{selectedNodeDetails.ChangeDate}</div>
-                </div>
-              )}
-              {selectedNodeDetails.CreatePerson && (
-                <div className="grid grid-cols-3 gap-2 text-xs">
-                  <div className="text-text-primary/70">Created By</div>
-                  <div className="col-span-2 font-medium">{selectedNodeDetails.CreatePerson}</div>
-                </div>
-              )}
-              {selectedNodeDetails.ChangePerson && (
-                <div className="grid grid-cols-3 gap-2 text-xs">
-                  <div className="text-text-primary/70">Changed By</div>
-                  <div className="col-span-2 font-medium">{selectedNodeDetails.ChangePerson}</div>
-                </div>
-              )}
-            </div>
-            <div className="pt-2 border-t border-border space-y-2">
-              {selectedNodeDetails.TCode && (
-                <div className="grid grid-cols-3 gap-2 text-xs">
-                  <div className="text-text-primary/70">T-Code</div>
-                  <div className="col-span-2 font-medium text-primary">{selectedNodeDetails.TCode}</div>
-                </div>
-              )}
-              {selectedNodeDetails.Manual && (
-                <div className="grid grid-cols-3 gap-2 text-xs">
-                  <div className="text-text-primary/70">Manual</div>
-                  <div className="col-span-2">
-                    <a href={selectedNodeDetails.Manual} target="_blank" rel="noreferrer" className="text-primary underline hover:text-primary/80">
-                      View Manual
-                    </a>
+              <div className="pt-2 border-t border-slate-100 space-y-2">
+                {(selectedNode.createPerson || selectedNodeDetails?.CreatePerson) && (
+                  <div className="grid grid-cols-3 gap-2 text-xs"><div className="text-slate-500">Created By</div><div className="col-span-2 font-medium">{selectedNode.createPerson || selectedNodeDetails?.CreatePerson}</div></div>
+                )}
+                {(selectedNode.changePerson || selectedNodeDetails?.ChangePerson) && (
+                  <div className="grid grid-cols-3 gap-2 text-xs"><div className="text-slate-500">Changed By</div><div className="col-span-2 font-medium">{selectedNode.changePerson || selectedNodeDetails?.ChangePerson}</div></div>
+                )}
+              </div>
+              <div className="pt-2 border-t border-slate-100 space-y-2">
+                {(selectedNode.tCode || selectedNodeDetails?.TCode) && (
+                  <div className="grid grid-cols-3 gap-2 text-xs"><div className="text-slate-500">T-Code</div><div className="col-span-2 font-medium text-blue-600">{selectedNode.tCode || selectedNodeDetails?.TCode}</div></div>
+                )}
+                {(selectedNode.manual || selectedNodeDetails?.Manual) && (
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div className="text-slate-500">Manual</div>
+                    <div className="col-span-2">
+                      <a href={selectedNode.manual || selectedNodeDetails?.Manual} target="_blank" rel="noreferrer" className="text-blue-600 underline hover:text-blue-800">View Manual</a>
+                    </div>
                   </div>
-                </div>
-              )}
-              {selectedNodeDetails.Output && (
-                <div className="grid grid-cols-3 gap-2 text-xs">
-                  <div className="text-text-primary/70">Output</div>
-                  <div className="col-span-2 font-medium">{selectedNodeDetails.Output}</div>
-                </div>
-              )}
+                )}
+                {(selectedNode.output || selectedNodeDetails?.Output) && (
+                  <div className="grid grid-cols-3 gap-2 text-xs"><div className="text-slate-500">Output</div><div className="col-span-2 font-medium">{selectedNode.output || selectedNodeDetails?.Output}</div></div>
+                )}
+              </div>
             </div>
-          </div>
-        ) : selectedNode ? (
-          <div className="space-y-3">
-            <div className="grid grid-cols-3 gap-2">
-              <div className="text-xs text-text-primary/70">ID</div>
-              <div className="col-span-2 font-semibold text-sm">{selectedNode.id}</div>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              <div className="text-xs text-text-primary/70">Label</div>
-              <div className="col-span-2 font-semibold whitespace-pre-wrap">{selectedNode.label}</div>
-            </div>
-            <div className="text-xs text-text-primary/70 pt-2">
-              <em>Detailed information not available</em>
-            </div>
-          </div>
-        ) : null}
+          ) : null}
+        </div>
       </Modal>
 
+      {/* --- VIEW-ONLY LANE MODAL --- */}
       <Modal title="Lane Details" open={!!selectedLane} onClose={() => setSelectedLane(null)}>
         {selectedLane && (
-          <div className="space-y-3">
-            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-text-primary/70">Name</div><div className="col-span-2 font-semibold">{selectedLane.title}</div></div>
-            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-text-primary/70">Lane ID</div><div className="col-span-2 font-semibold text-sm">{selectedLane.id}</div></div>
-            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-text-primary/70">Assigned To</div><div className="col-span-2 font-semibold">{selectedLane.personId || 'Unassigned'}</div></div>
-            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-text-primary/70">Department</div><div className="col-span-2 font-semibold text-sm text-text-primary/80">General Operations</div></div>
+          <div className="space-y-3 bg-white p-1 text-slate-900 rounded-md">
+            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-slate-500">Lane ID</div><div className="col-span-2 font-semibold text-sm">{selectedLane.id}</div></div>
+            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-slate-500">Name</div><div className="col-span-2 font-semibold">{selectedLane.title}</div></div>
+            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-slate-500">Assigned To</div><div className="col-span-2 font-semibold">{selectedLane.personId || 'Unassigned'}</div></div>
+            <div className="grid grid-cols-3 gap-2"><div className="text-xs text-slate-500">Department</div><div className="col-span-2 font-semibold text-sm text-slate-700">{selectedLane.department || 'General Operations'}</div></div>
           </div>
         )}
       </Modal>
 
-      {/* --- NEW: EDITABLE LANE MODAL --- */}
+      {/* --- EDITABLE LANE MODAL --- */}
       <Modal title="Edit Lane" open={!!editingLane} onClose={() => setEditingLane(null)}>
         {editingLane && (
-          <div className="space-y-4">
+          <div className="space-y-4 bg-white p-1 text-slate-900 rounded-md">
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Lane Name</label>
-              <input
-                type="text"
-                autoFocus
-                className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                value={editingLane.title}
-                onChange={(e) => setEditingLane({ ...editingLane, title: e.target.value })}
-              />
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Lane ID (Read-Only)</label>
+              <input type="text" disabled className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-500 bg-slate-50" value={editingLane.id} />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Name</label>
+              <input type="text" autoFocus className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" value={editingLane.title} onChange={(e) => setEditingLane({ ...editingLane, title: e.target.value })} />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Assigned To</label>
+              <input type="text" className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" value={editingLane.personId || ''} onChange={(e) => setEditingLane({ ...editingLane, personId: e.target.value })} />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Department</label>
+              <input type="text" className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" value={editingLane.department || ''} onChange={(e) => setEditingLane({ ...editingLane, department: e.target.value })} />
             </div>
 
-            {/* Action Bar */}
             <div className="flex justify-between items-center pt-5 mt-2 border-t border-slate-100">
-              <button
-                onClick={() => {
-                  if (confirm('Are you sure you want to delete this lane? All nodes inside it will also be deleted.')) {
-                    dispatch(removeLane(editingLane.id))
-                    setEditingLane(null)
-                  }
-                }}
-                className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
-              >
-                Delete Lane
-              </button>
-              <button
-                onClick={() => {
-                  dispatch(updateLane({ id: editingLane.id, title: editingLane.title }))
-                  setEditingLane(null)
-                }}
-                className="px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-colors"
-              >
-                Save Changes
-              </button>
+              <button onClick={() => { if (confirm('Delete this lane and all nodes inside it?')) { dispatch(removeLane(editingLane.id)); setEditingLane(null); } }} className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors">Delete Lane</button>
+              <button onClick={() => { dispatch(updateLane({ id: editingLane.id, title: editingLane.title, personId: editingLane.personId, department: editingLane.department })); setEditingLane(null); }} className="px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-colors">Save Changes</button>
             </div>
           </div>
         )}
       </Modal>
 
-      {/* --- NEW: EDITABLE NODE MODAL --- */}
+      {/* --- EDITABLE NODE MODAL --- */}
       <Modal title="Edit Node Details" open={!!editingNode} onClose={() => setEditingNode(null)}>
         {editingNode && (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Label / Title</label>
-              <input
-                type="text"
-                className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                value={editingNode.label || ''}
-                onChange={(e) => setEditingNode({ ...editingNode, label: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Description</label>
-              <textarea
-                rows={4}
-                className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none"
-                placeholder="Add more details about this process step..."
-                value={editingNode.description || ''}
-                onChange={(e) => setEditingNode({ ...editingNode, description: e.target.value })}
-              />
+          <div className="space-y-4 bg-white p-1 text-slate-900 rounded-md">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">ID (Read-Only)</label>
+                <input type="text" disabled className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-500 bg-slate-50" value={editingNode.id} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Type (Read-Only)</label>
+                <input type="text" disabled className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-500 bg-slate-50 uppercase" value={editingNode.type} />
+              </div>
             </div>
 
-            {/* Action Bar */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Label / Title</label>
+              <input type="text" className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" value={editingNode.label || ''} onChange={(e) => setEditingNode({ ...editingNode, label: e.target.value })} />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Description</label>
+              <textarea rows={3} className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none" placeholder="Details about this step..." value={editingNode.description || ''} onChange={(e) => setEditingNode({ ...editingNode, description: e.target.value })} />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Create Person</label>
+                <input type="text" className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" value={editingNode.createPerson || ''} onChange={(e) => setEditingNode({ ...editingNode, createPerson: e.target.value })} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Change Person</label>
+                <input type="text" className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" value={editingNode.changePerson || ''} onChange={(e) => setEditingNode({ ...editingNode, changePerson: e.target.value })} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">T-Code</label>
+                <input type="text" className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" value={editingNode.tCode || ''} onChange={(e) => setEditingNode({ ...editingNode, tCode: e.target.value })} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Output</label>
+                <input type="text" className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" value={editingNode.output || ''} onChange={(e) => setEditingNode({ ...editingNode, output: e.target.value })} />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Manual (URL)</label>
+              <input type="text" className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" value={editingNode.manual || ''} onChange={(e) => setEditingNode({ ...editingNode, manual: e.target.value })} />
+            </div>
+
             <div className="flex justify-end pt-5 mt-2 border-t border-slate-100">
               <button
                 onClick={() => {
                   dispatch(updateNodeInfo({
                     id: editingNode.id,
                     label: editingNode.label || '',
-                    description: editingNode.description
+                    description: editingNode.description,
+                    tCode: editingNode.tCode,
+                    manual: editingNode.manual,
+                    output: editingNode.output,
+                    createPerson: editingNode.createPerson,
+                    changePerson: editingNode.changePerson
                   }))
                   setEditingNode(null)
                 }}
@@ -601,6 +549,7 @@ export function RoadmapView() {
           </div>
         )}
       </Modal>
+
     </main>
   )
 }
