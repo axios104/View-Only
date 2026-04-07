@@ -14,6 +14,7 @@
     "dagre": "^0.8.5",
     "lucide-react": "^1.7.0",
     "react": "^19.2.4",
+    "react-awesome-shapes": "^0.1.6",
     "react-dom": "^19.2.4",
     "react-redux": "^9.2.0",
     "react-router-dom": "^7.14.0"

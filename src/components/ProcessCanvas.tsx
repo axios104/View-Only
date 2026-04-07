@@ -1,5 +1,5 @@
 import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from 'react'
-import type { Anchor, Person, RoadmapDiagram, NodeShape, Lane } from '../types/roadmap'
+import type { Anchor, Person, RoadmapDiagram, Lane } from '../types/roadmap'
 import { setTranslate, setScale, setSelectedEditEdgeId, setSelectedEditNodeId } from '../store/canvasSlice'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
 import { updateNodeCoords, addEdge, removeEdge } from '../store/diagramSlice'
@@ -34,49 +34,97 @@ function anchorPoint(n: PositionedRoadmapNode, a: Anchor): { x: number; y: numbe
   }
 }
 
-function NodeBg({ shape, fill, border }: { shape: NodeShape, fill: string, border: string }) {
+// ---------------------------------------------------------
+// CUSTOM SHAPE & COLOR MAPPER (With safe fallbacks)
+// ---------------------------------------------------------
+function getMappedNodeStyle(n: PositionedRoadmapNode) {
+  // Safe casting to avoid TS errors on dynamic layout props
+  let shape = (n as any).shape || 'rounded-rect'
+  let fill = (n as any).style?.fill || '#ffffff'
+  let border = (n as any).style?.border || '#cbd5e1'
+
+  // Safe string conversion to avoid crashes if metadata is missing
+  const t = String(n.type || '').toLowerCase()
+  const meta = String(n.metadata?.typeText || '').toLowerCase()
+  const label = String(n.label || n.title || '').toLowerCase()
+
+  // 1. SAP Function (Blue Rectangle)
+  if (t === 'process' || t === 'sap' || meta === 'sap') {
+    fill = '#E3F2FD'; border = '#1565C0'; shape = 'rounded-rect'
+  }
+  // 2. Legacy function (Purple Rectangle)
+  if (t === 'legacy' || meta.includes('legacy') || label.includes('legacy')) {
+    fill = '#F3E5F5'; border = '#7B1FA2'; shape = 'rounded-rect'
+  }
+  // 3. Manual Function (Red Trapezoid)
+  if (t === 'process-red' || t === 'manual' || meta.includes('manual') || label.includes('manual')) {
+    fill = '#FFEBEE'; border = '#C62828'; shape = 'trapezoid'
+  }
+  // 4. Technical Term (Gray Rectangle)
+  if (t === 'technical' || meta.includes('technical') || label.includes('technical') || label.includes('tech')) {
+    fill = '#F5F5F5'; border = '#424242'; shape = 'rounded-rect'
+  }
+  // 5. Start / End (Hexagon)
+  if (t === 'terminator' || t === 'start-end' || label.includes('start') || label.includes('end')) {
+    fill = '#E8F5E9'; border = '#2E7D32'; shape = 'hexagon'
+  }
+  // 6. Input (Parallelogram / "2 Hex")
+  if (t === 'input' || t === 'data' || label.includes('input')) {
+    fill = '#FFF8E1'; border = '#FF8F00'; shape = 'parallelogram'
+  }
+
+  // Preserve Decision Diamond 
+  if (t === 'decision') {
+    fill = '#FFF3E0'; border = '#E65100'; shape = 'decision'
+  }
+
+  return { shape, fill, border }
+}
+
+// ---------------------------------------------------------
+// CUSTOM SVG GENERATOR
+// ---------------------------------------------------------
+function NodeBg({ shape, fill, border }: { shape: string, fill: string, border: string }) {
+  const dropShadow = 'drop-shadow(0 2px 8px rgba(0,0,0,0.12))'
+
   if (shape === 'decision') {
     return (
-      <svg className="absolute inset-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 100 100" style={{ filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.12))' }}>
+      <svg className="absolute inset-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 100 100" style={{ filter: dropShadow }}>
         <polygon points="50,2 98,50 50,98 2,50" fill={fill} stroke={border} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
       </svg>
     )
   }
   if (shape === 'hexagon') {
     return (
-      <svg className="absolute inset-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 100 100" style={{ filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.12))' }}>
-        <polygon points="12,2 88,2 98,50 88,98 12,98 2,50" fill={fill} stroke={border} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+      <svg className="absolute inset-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 100 100" style={{ filter: dropShadow }}>
+        <polygon points="15,2 85,2 98,50 85,98 15,98 2,50" fill={fill} stroke={border} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
       </svg>
     )
   }
-  if (shape === 'document') {
+  if (shape === 'parallelogram') {
     return (
-      <svg className="absolute inset-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 100 100" style={{ filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.12))' }}>
-        <polygon points="2,2 75,2 98,25 98,98 2,98" fill={fill} stroke={border} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
-        <polyline points="75,2 75,25 98,25" fill="none" stroke={border} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+      <svg className="absolute inset-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 100 100" style={{ filter: dropShadow }}>
+        <polygon points="15,2 98,2 85,98 2,98" fill={fill} stroke={border} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
       </svg>
     )
   }
-  if (shape === 'rounded-rect' || shape === 'rect') {
-    const rx = shape === 'rounded-rect' ? "10" : "2"
+  if (shape === 'trapezoid') {
     return (
-      <svg className="absolute inset-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 100 100" style={{ filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.12))' }}>
-        <rect x="2" y="2" width="96" height="96" rx={rx} fill={fill} stroke={border} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+      <svg className="absolute inset-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 100 100" style={{ filter: dropShadow }}>
+        <polygon points="10,2 90,2 98,98 2,98" fill={fill} stroke={border} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
       </svg>
     )
   }
-  if (shape === 'arrow-right') {
-    return (
-      <svg className="absolute inset-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 100 100" style={{ filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.12))' }}>
-        <polygon points="2,2 85,2 98,50 85,98 2,98 15,50" fill={fill} stroke={border} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
-      </svg>
-    )
-  }
-  return null
+  // default fallback: rounded-rect (SAP, Legacy, Technical)
+  return (
+    <svg className="absolute inset-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 100 100" style={{ filter: dropShadow }}>
+      <rect x="2" y="2" width="96" height="96" rx="10" fill={fill} stroke={border} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+    </svg>
+  )
 }
 
-function Node({ n, onClick, onPointerDown, onAnchorDown, onMouseEnter, onMouseLeave }: { 
-  n: PositionedRoadmapNode, 
+function Node({ n, onClick, onPointerDown, onAnchorDown, onMouseEnter, onMouseLeave }: {
+  n: PositionedRoadmapNode,
   onClick?: (n: PositionedRoadmapNode) => void,
   onPointerDown?: (e: React.PointerEvent, n: PositionedRoadmapNode) => void,
   onAnchorDown?: (e: React.PointerEvent, n: PositionedRoadmapNode, a: Anchor) => void,
@@ -85,6 +133,8 @@ function Node({ n, onClick, onPointerDown, onAnchorDown, onMouseEnter, onMouseLe
 }) {
   const { selectedEditNodeId, mode, handMode } = useAppSelector((s) => s.canvas)
   const isSelected = mode === 'edit' && selectedEditNodeId === n.id
+
+  const { shape, fill, border } = getMappedNodeStyle(n)
 
   const base = 'absolute grid select-none place-items-center text-center text-[11px] leading-snug transition-all duration-200 z-10'
 
@@ -108,24 +158,24 @@ function Node({ n, onClick, onPointerDown, onAnchorDown, onMouseEnter, onMouseLe
         top: n.y,
         width: n.w,
         height: n.h,
-        color: n.style.text,
-        fontWeight: 600,
-        outline: isSelected ? '3px solid var(--color-primary)' : 'none',
-        outlineOffset: isSelected ? '4px' : '0px',
-        borderRadius: n.shape === 'decision' || n.shape === 'hexagon' ? '4px' : 'inherit'
+        color: '#1e293b', // Forced dark slate for high contrast against pastel fills
+        fontWeight: 700,
+        outline: 'none', // FIXED: Removed the blue outline
+        borderRadius: 'inherit'
       }}
     >
       <div className="absolute inset-0 overflow-hidden pointer-events-none" style={{ borderRadius: 'inherit' }}>
-        <NodeBg shape={n.shape} fill={n.style.fill} border={n.style.border} />
+        <NodeBg shape={shape} fill={fill} border={border} />
       </div>
-      <div className="relative z-10 flex h-full w-full items-center justify-center p-2 text-center overflow-hidden pointer-events-none">
+      <div className="relative z-10 flex h-full w-full items-center justify-center p-3 text-center overflow-hidden pointer-events-none">
         <div>
-          {(n.label ?? '').split('\n').map((line: string, idx: number) => (
+          {(n.label || n.title || '').split('\n').map((line: string, idx: number) => (
             <div key={idx} className="break-words">{line}</div>
           ))}
         </div>
       </div>
 
+      {/* FIXED: The connector dots will still render when selected, even without the outline */}
       {isSelected && (
         <>
           <AnchorHandle pos="top" onClick={(e) => onAnchorDown?.(e, n, 'top')} />
@@ -140,7 +190,7 @@ function Node({ n, onClick, onPointerDown, onAnchorDown, onMouseEnter, onMouseLe
 
 function AnchorHandle({ pos, onClick }: { pos: Anchor, onClick: (e: React.PointerEvent) => void }) {
   const getStyle = () => {
-    switch(pos) {
+    switch (pos) {
       case 'top': return { top: -5, left: '50%', transform: 'translateX(-50%)' }
       case 'bottom': return { bottom: -5, left: '50%', transform: 'translateX(-50%)' }
       case 'left': return { left: -5, top: '50%', transform: 'translateY(-50%)' }
@@ -149,7 +199,7 @@ function AnchorHandle({ pos, onClick }: { pos: Anchor, onClick: (e: React.Pointe
     }
   }
   return (
-    <div 
+    <div
       className="absolute w-3 h-3 bg-[var(--color-primary)] border-[1.5px] border-white rounded-full z-20 cursor-crosshair hover:scale-125 transition-transform"
       style={getStyle()}
       onPointerDown={(e) => { e.stopPropagation(); onClick(e); }}
@@ -161,7 +211,7 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
   { diagram, className, onPersonClick, onNodeClick, onLaneClick, onBackgroundClick, onDropNode },
   ref,
 ) {
-  // SAFETY NET: Provide fallbacks for missing arrays or canvas properties
+  // SAFETY NET
   const safeDiagram = useMemo(() => ({
     ...diagram,
     lanes: diagram?.lanes || [],
@@ -181,7 +231,7 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
   const clickCandidateRef = useRef<{ personId: string | null; nodeId: string | null; laneId: string | null; x: number; y: number; moved: boolean }>({ personId: null, nodeId: null, laneId: null, x: 0, y: 0, moved: false })
 
   const [draggedNode, setDraggedNode] = useState<{ id: string, x: number, y: number, laneId?: string } | null>(null)
-  
+
   type DrawingEdge = { sourceId: string; sourceAnchor: Anchor; x: number; y: number }
   const [drawingEdge, setDrawingEdge] = useState<DrawingEdge | null>(null)
   const hoveredNodeRef = useRef<string | null>(null)
@@ -210,38 +260,6 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
   const contentHeight = headerH + (maxLevel + 1) * rowGap
   const docHeight = Math.max(safeDiagram.canvas.height, contentHeight + 50)
 
-  // Bounds Calculator: Prevent infinite scrolling
-  const getClampedTranslate = (nextTx: number, nextTy: number, currentScale: number) => {
-    const el = viewportRef.current
-    if (!el) return { tx: nextTx, ty: nextTy }
-
-    const rect = el.getBoundingClientRect()
-    const padding = 50
-
-    const scaledW = safeDiagram.canvas.width * currentScale
-    let minTx, maxTx
-    if (scaledW + padding * 2 < rect.width) {
-      minTx = maxTx = (rect.width - scaledW) / 2
-    } else {
-      minTx = rect.width - scaledW - padding
-      maxTx = padding
-    }
-
-    const scaledH = docHeight * currentScale
-    let minTy, maxTy
-    if (scaledH + padding * 2 < rect.height) {
-      minTy = maxTy = padding
-    } else {
-      minTy = rect.height - scaledH - padding
-      maxTy = padding
-    }
-
-    return {
-      tx: Math.max(minTx, Math.min(maxTx, nextTx)),
-      ty: Math.max(minTy, Math.min(maxTy, nextTy)),
-    }
-  }
-
   const nodesById = useMemo(() => {
     const m = new Map<string, PositionedRoadmapNode>()
     for (const n of positionedNodes) m.set(n.id, n)
@@ -259,7 +277,6 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
       return { id: e.id, from, to, connector, label: e.label ?? null, source: e.from || e.source, target: e.to || e.target }
     }).filter(Boolean) as any[]
 
-    // Detect and offset parallel/duplicate connectors
     const edgesByPair = new Map<string, any[]>()
     edgesList.forEach(edge => {
       const key1 = `${edge.source}->${edge.target}`
@@ -268,7 +285,6 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
       edgesByPair.get(key)!.push(edge)
     })
 
-    // Apply offset to parallel connectors
     const offsetEdges = edgesList.map(edge => {
       const key = `${edge.source}->${edge.target}`
       const parallelEdges = edgesByPair.get(key) || []
@@ -293,43 +309,41 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
     if (mode !== 'edit' || handMode) return
     e.stopPropagation()
     e.currentTarget.setPointerCapture(e.pointerId)
-    
+
     dispatch(setSelectedEditNodeId(n.id))
-    
+
     const el = transformLayerRef.current
     if (!el) return
     const rect = el.getBoundingClientRect()
-    
+
     const px = e.clientX - rect.left
     const py = e.clientY - rect.top
     const worldX = px / scale
     const worldY = py / scale
     const offsetX = worldX - n.x
     const offsetY = worldY - n.y
-    
+
     setDraggedNode({ id: n.id, x: n.x, y: n.y })
-    
+
     const onMove = (ev: PointerEvent) => {
       const ex = ev.clientX - rect.left
       const ey = ev.clientY - rect.top
       const worldX = ex / scale
       const worldY = ey / scale
-      
-      // Find the lane the cursor is over
+
       const laneIdx = Math.max(0, Math.min(safeDiagram.lanes.length - 1, Math.floor(worldX / laneWidth)))
       const hoveredLaneId = safeDiagram.lanes[laneIdx]?.id
-      
-      // Clamp strictly inside that lane's column boundaries
+
       const laneMinX = laneIdx * laneWidth + 8
       const laneMaxX = laneMinX + laneWidth - n.w - 16
-      
+
       const nx = worldX - offsetX
       const ny = worldY - offsetY
       const clampedX = Math.max(laneMinX, Math.min(laneMaxX, nx))
-      
+
       setDraggedNode({ id: n.id, x: clampedX, y: ny, laneId: hoveredLaneId })
     }
-    
+
     const onUp = (ev: PointerEvent) => {
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
@@ -339,9 +353,9 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
         }
         return null
       })
-      try { (ev.target as Element).releasePointerCapture(ev.pointerId) } catch {}
+      try { (ev.target as Element).releasePointerCapture(ev.pointerId) } catch { }
     }
-    
+
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
   }
@@ -350,31 +364,30 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
     if (mode !== 'edit') return
     e.stopPropagation()
     e.currentTarget.setPointerCapture(e.pointerId)
-    
+
     const el = transformLayerRef.current
     if (!el) return
     const rect = el.getBoundingClientRect()
-    
+
     const startPt = anchorPoint(n, a)
     setDrawingEdge({ sourceId: n.id, sourceAnchor: a, x: startPt.x, y: startPt.y })
-    
+
     const onMove = (ev: PointerEvent) => {
       const ex = ev.clientX - rect.left
       const ey = ev.clientY - rect.top
       const worldX = ex / scale
       const worldY = ey / scale
-      
+
       setDrawingEdge(prev => prev ? { ...prev, x: worldX, y: worldY } : null)
-      
-      // Calculate manual collision because pointer-capture blocks onMouseEnter
+
       const hovered = positionedNodes.find(pn => worldX >= pn.x && worldX <= pn.x + pn.w && worldY >= pn.y && worldY <= pn.y + pn.h)
       hoveredNodeRef.current = hovered ? hovered.id : null
     }
-    
+
     const onUp = (ev: PointerEvent) => {
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
-      
+
       setDrawingEdge(prev => {
         if (prev && hoveredNodeRef.current && hoveredNodeRef.current !== prev.sourceId) {
           const edgeId = `edge-${Date.now()}`
@@ -382,9 +395,9 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
         }
         return null
       })
-      try { (ev.target as Element).releasePointerCapture(ev.pointerId) } catch {}
+      try { (ev.target as Element).releasePointerCapture(ev.pointerId) } catch { }
     }
-    
+
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
   }
@@ -402,7 +415,6 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
     const clampedScale = Math.max(0.05, Math.min(4.0, nextScale))
     dispatch(setScale(clampedScale))
 
-    // After scale, scroll so same world point stays under cursor
     requestAnimationFrame(() => {
       el.scrollLeft = worldX * clampedScale - px
       el.scrollTop = worldY * clampedScale - py
@@ -449,7 +461,6 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
     },
     reset: resetToLeft,
     fit,
-    // Note: expose resetToLeft behavior instead of fit-to-screen reset.
   }), [dispatch, scale, docHeight, safeDiagram.canvas.width])
 
   return (
@@ -460,7 +471,6 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
           pendingAddType ? 'cursor-crosshair' : (magnifierMode ? 'cursor-zoom-in' : (handMode ? (dragging ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-default'))].join(' ')}
         style={{ touchAction: 'none' }}
         onScroll={() => {
-          // Sync scroll position to Redux for minimap
           const el = viewportRef.current
           if (el) {
             dispatch(setTranslate({ tx: -el.scrollLeft, ty: -el.scrollTop }))
@@ -471,7 +481,6 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
             e.preventDefault()
             zoomAround(scale * (e.deltaY > 0 ? 0.92 : 1.08), e.clientX, e.clientY)
           }
-          // Normal wheel: let native scroll handle it
         }}
         onPointerDown={(e) => {
           if (magnifierMode) {
@@ -503,7 +512,6 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
               clickCandidateRef.current.moved = true
             }
 
-            // Hand drag → native scroll
             const vp = viewportRef.current
             if (vp) {
               vp.scrollLeft -= dx
@@ -541,7 +549,6 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
           window.addEventListener('pointerup', onUp)
         }}
       >
-        {/* Dot-grid background - fixed behind scroll */}
         <div className="sticky inset-0 w-full h-0 pointer-events-none z-0">
           <div className="absolute inset-0 pointer-events-none"
             style={{
@@ -562,9 +569,8 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
             ref={transformLayerRef}
             onClick={(e) => {
               if (handMode) return;
-              // If click happened on a known node or lane, let it propagate but do nothing here
               if ((e.target as HTMLElement).closest('[data-node-id]') || (e.target as HTMLElement).closest('[data-lane-id]')) return;
-              
+
               const rect = transformLayerRef.current?.getBoundingClientRect();
               if (!rect) return;
               const px = e.clientX - rect.left;
@@ -621,7 +627,7 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
               </defs>
               {drawingEdge && (() => {
                 const srcNode = nodesById.get(drawingEdge.sourceId)
-                if(!srcNode) return null
+                if (!srcNode) return null
                 const pt = anchorPoint({ ...srcNode, x: draggedNode?.id === srcNode.id ? draggedNode.x : srcNode.x, y: draggedNode?.id === srcNode.id ? draggedNode.y : srcNode.y }, drawingEdge.sourceAnchor)
                 return (
                   <path d={`M ${pt.x} ${pt.y} L ${drawingEdge.x} ${drawingEdge.y}`} stroke="var(--color-primary)" strokeWidth={3} fill="none" strokeDasharray="5,5" />
@@ -633,10 +639,10 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
                 const sN = nodesById.get(e.source)
                 const tN = nodesById.get(e.target)
                 if (!sN || !tN) return null
-                
+
                 const fromNode = draggedSrc ? { ...sN, x: draggedNode.x, y: draggedNode.y } : sN
                 const toNode = draggedTgt ? { ...tN, x: draggedNode.x, y: draggedNode.y } : tN
-                
+
                 const fromPt = anchorPoint(fromNode, e.fromAnchor ?? 'right')
                 const toPt = anchorPoint(toNode, e.toAnchor ?? 'left')
 
@@ -653,8 +659,9 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
                 const strokeColor = isSelectedEdge ? 'var(--color-primary)' : e.connector
 
                 return (
-                  <g key={e.id} 
+                  <g key={e.id}
                     className={mode === 'edit' ? 'cursor-pointer hover:opacity-80' : ''}
+                    style={{ pointerEvents: 'all' }} // <--- FIX: This makes the line clickable again!
                     onClick={(ev) => {
                       if (mode === 'edit') {
                         ev.stopPropagation()
@@ -665,15 +672,12 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
                     {/* Invisible thicker area for easier clicking */}
                     <path d={`M ${fromPt.x} ${fromPt.y} L ${bendXOffset} ${fromPt.y} L ${bendXOffset} ${toPt.y} L ${toPt.x} ${toPt.y}`}
                       stroke="transparent" strokeWidth={15} fill="none" />
-                      
+
                     {/* Connector path */}
                     <path d={`M ${fromPt.x} ${fromPt.y} L ${bendXOffset} ${fromPt.y} L ${bendXOffset} ${toPt.y} L ${toPt.x} ${toPt.y}`}
                       stroke={strokeColor} strokeWidth={isSelectedEdge ? 3 : 2} fill="none" strokeOpacity={0.85} strokeLinecap="round" strokeLinejoin="round" markerEnd="url(#arrowhead)" />
-                    {/* Dot at source */}
                     <circle cx={fromPt.x} cy={fromPt.y} r={3.5} fill={strokeColor} opacity={0.9} />
-                    {/* Dot at target */}
                     <circle cx={toPt.x} cy={toPt.y} r={3.5} fill={strokeColor} opacity={0.9} />
-                    {/* Label */}
                     {e.label && (
                       <text x={labelX} y={labelY} textAnchor={isGoingRight ? 'start' : 'end'} fontSize={11} fill="var(--color-text-primary)" fontWeight={600}
                         style={{ pointerEvents: 'none' }}>
@@ -685,18 +689,18 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
               })}
             </svg>
             {renderNodes.map((n) => (
-              <Node 
-                key={n.id} 
-                n={n} 
-                onClick={onNodeClick} 
+              <Node
+                key={n.id}
+                n={n}
+                onClick={onNodeClick}
                 onPointerDown={handleNodePointerDown}
                 onAnchorDown={handleAnchorDown}
                 onMouseEnter={() => { hoveredNodeRef.current = n.id }}
                 onMouseLeave={() => { hoveredNodeRef.current = null }}
               />
             ))}
-          </div>{/* close transform layer */}
-        </div>{/* close sizer */}
+          </div>
+        </div>
 
       </div>
       <MiniMap
@@ -739,7 +743,6 @@ function MiniMap({ diagram, docHeight, viewportRef, scale, tx, ty, onJump, posit
   const s = Math.min(miniWidth / safeCanvasW, miniHeight / docHeight)
   const [isDragging, setIsDragging] = useState(false)
 
-  // Dragging state for the minimap container itself
   const [customPos, setCustomPos] = useState<{ x: number; y: number } | null>(null)
   const [isDraggingMinimap, setIsDraggingMinimap] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
@@ -747,12 +750,10 @@ function MiniMap({ diagram, docHeight, viewportRef, scale, tx, ty, onJump, posit
 
   const updateJump = (e: React.PointerEvent) => {
     const rect = e.currentTarget.getBoundingClientRect()
-    // Convert minimap click to world coordinates, then to scroll position
     const worldX = (e.clientX - rect.left) / s
     const worldY = (e.clientY - rect.top) / s
     const vp = viewportRef.current
     if (!vp) return
-    // Center the viewport on the clicked world point
     vp.scrollLeft = worldX * scale - vp.clientWidth / 2
     vp.scrollTop = worldY * scale - vp.clientHeight / 2
   }
@@ -797,7 +798,6 @@ function MiniMap({ diagram, docHeight, viewportRef, scale, tx, ty, onJump, posit
     e.currentTarget.releasePointerCapture(e.pointerId)
   }
 
-  // Derive scroll position from tx/ty (tx = -scrollLeft, ty = -scrollTop)
   const scrollLeft = -tx
   const scrollTop = -ty
 
@@ -838,9 +838,12 @@ function MiniMap({ diagram, docHeight, viewportRef, scale, tx, ty, onJump, posit
                   stroke={e.connector} strokeWidth={7} fill="none" opacity={0.6} strokeLinecap="round" strokeLinejoin="round" />
               )
             })}
-            {positionedNodes.map(n => (
-              <rect key={`mini-${n.id}`} x={n.x} y={n.y} width={n.w} height={n.h} fill={n.style.fill} stroke={n.style.border} strokeWidth={4} rx={10} />
-            ))}
+            {positionedNodes.map(n => {
+              const { fill, border } = getMappedNodeStyle(n)
+              return (
+                <rect key={`mini-${n.id}`} x={n.x} y={n.y} width={n.w} height={n.h} fill={fill} stroke={border} strokeWidth={4} rx={10} />
+              )
+            })}
           </svg>
         </div>
 
