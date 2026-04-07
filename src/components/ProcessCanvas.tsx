@@ -35,45 +35,35 @@ function anchorPoint(n: PositionedRoadmapNode, a: Anchor): { x: number; y: numbe
 }
 
 // ---------------------------------------------------------
-// CUSTOM SHAPE & COLOR MAPPER (With safe fallbacks)
+// CUSTOM SHAPE & COLOR MAPPER
 // ---------------------------------------------------------
 function getMappedNodeStyle(n: PositionedRoadmapNode) {
-  // Safe casting to avoid TS errors on dynamic layout props
   let shape = (n as any).shape || 'rounded-rect'
   let fill = (n as any).style?.fill || '#ffffff'
   let border = (n as any).style?.border || '#cbd5e1'
 
-  // Safe string conversion to avoid crashes if metadata is missing
   const t = String(n.type || '').toLowerCase()
   const meta = String(n.metadata?.typeText || '').toLowerCase()
   const label = String(n.label || n.title || '').toLowerCase()
 
-  // 1. SAP Function (Blue Rectangle)
   if (t === 'process' || t === 'sap' || meta === 'sap') {
     fill = '#E3F2FD'; border = '#1565C0'; shape = 'rounded-rect'
   }
-  // 2. Legacy function (Purple Rectangle)
   if (t === 'legacy' || meta.includes('legacy') || label.includes('legacy')) {
     fill = '#F3E5F5'; border = '#7B1FA2'; shape = 'rounded-rect'
   }
-  // 3. Manual Function (Red Trapezoid)
   if (t === 'process-red' || t === 'manual' || meta.includes('manual') || label.includes('manual')) {
     fill = '#FFEBEE'; border = '#C62828'; shape = 'trapezoid'
   }
-  // 4. Technical Term (Gray Rectangle)
   if (t === 'technical' || meta.includes('technical') || label.includes('technical') || label.includes('tech')) {
     fill = '#F5F5F5'; border = '#424242'; shape = 'rounded-rect'
   }
-  // 5. Start / End (Hexagon)
   if (t === 'terminator' || t === 'start-end' || label.includes('start') || label.includes('end')) {
     fill = '#E8F5E9'; border = '#2E7D32'; shape = 'hexagon'
   }
-  // 6. Input (Parallelogram / "2 Hex")
   if (t === 'input' || t === 'data' || label.includes('input')) {
     fill = '#FFF8E1'; border = '#FF8F00'; shape = 'parallelogram'
   }
-
-  // Preserve Decision Diamond 
   if (t === 'decision') {
     fill = '#FFF3E0'; border = '#E65100'; shape = 'decision'
   }
@@ -115,7 +105,6 @@ function NodeBg({ shape, fill, border }: { shape: string, fill: string, border: 
       </svg>
     )
   }
-  // default fallback: rounded-rect (SAP, Legacy, Technical)
   return (
     <svg className="absolute inset-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 100 100" style={{ filter: dropShadow }}>
       <rect x="2" y="2" width="96" height="96" rx="10" fill={fill} stroke={border} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
@@ -158,9 +147,9 @@ function Node({ n, onClick, onPointerDown, onAnchorDown, onMouseEnter, onMouseLe
         top: n.y,
         width: n.w,
         height: n.h,
-        color: '#1e293b', // Forced dark slate for high contrast against pastel fills
+        color: '#1e293b',
         fontWeight: 700,
-        outline: 'none', // FIXED: Removed the blue outline
+        outline: 'none',
         borderRadius: 'inherit'
       }}
     >
@@ -175,7 +164,6 @@ function Node({ n, onClick, onPointerDown, onAnchorDown, onMouseEnter, onMouseLe
         </div>
       </div>
 
-      {/* FIXED: The connector dots will still render when selected, even without the outline */}
       {isSelected && (
         <>
           <AnchorHandle pos="top" onClick={(e) => onAnchorDown?.(e, n, 'top')} />
@@ -211,7 +199,6 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
   { diagram, className, onPersonClick, onNodeClick, onLaneClick, onBackgroundClick, onDropNode },
   ref,
 ) {
-  // SAFETY NET
   const safeDiagram = useMemo(() => ({
     ...diagram,
     lanes: diagram?.lanes || [],
@@ -248,7 +235,11 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
     return m
   }, [safeDiagram.lanes])
 
-  const laneWidth = safeDiagram.lanes.length > 0 ? safeDiagram.canvas.width / safeDiagram.lanes.length : safeDiagram.canvas.width
+  // --- Dynamic width to support scrolling when many lanes are added ---
+  const MIN_LANE_WIDTH = 350;
+  const computedCanvasWidth = Math.max(safeDiagram.canvas.width || 2000, safeDiagram.lanes.length * MIN_LANE_WIDTH);
+  const laneWidth = safeDiagram.lanes.length > 0 ? computedCanvasWidth / safeDiagram.lanes.length : computedCanvasWidth;
+
   const headerH = 64
   const rowGap = 90
 
@@ -426,7 +417,7 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
     if (!el) return
     const rect = el.getBoundingClientRect()
 
-    const contentW = Math.max(1, safeDiagram.canvas.width)
+    const contentW = Math.max(1, computedCanvasWidth)
     const contentH = Math.max(1, docHeight)
     const padding = 50
     const targetScaleW = (rect.width - padding * 2) / contentW
@@ -461,7 +452,7 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
     },
     reset: resetToLeft,
     fit,
-  }), [dispatch, scale, docHeight, safeDiagram.canvas.width])
+  }), [dispatch, scale, docHeight, computedCanvasWidth])
 
   return (
     <div className={['relative h-full w-full overflow-hidden', className ?? ''].join(' ')}>
@@ -563,7 +554,7 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
           />
         </div>
         <div
-          style={{ width: safeDiagram.canvas.width * scale, height: docHeight * scale, position: 'relative', flexShrink: 0 }}
+          style={{ width: computedCanvasWidth * scale, height: docHeight * scale, position: 'relative', flexShrink: 0 }}
         >
           <div
             ref={transformLayerRef}
@@ -593,21 +584,22 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
                 onDropNode(type, worldX, worldY);
               }
             }}
-            style={{ transform: `scale(${scale})`, transformOrigin: '0 0', width: safeDiagram.canvas.width, height: docHeight, position: 'absolute', left: 0, top: 0 }}
+            style={{ transform: `scale(${scale})`, transformOrigin: '0 0', width: computedCanvasWidth, height: docHeight, position: 'absolute', left: 0, top: 0 }}
           >
+            {/* Darker lane lines that go to the bottom of the document */}
             {safeDiagram.lanes.map((lane, idx) => (
-              <div key={`v-grid-${lane.id}`} className="pointer-events-none absolute top-0 z-0" style={{ left: idx * laneWidth, width: '3px', height: contentHeight, backgroundColor: 'var(--color-border)', opacity: 0.75 }} />
+              <div key={`v-grid-${lane.id}`} className="pointer-events-none absolute top-0 z-0" style={{ left: idx * laneWidth, width: '2px', height: '100%', backgroundColor: '#64748b', opacity: 0.8 }} />
             ))}
-            <div className="pointer-events-none absolute top-0 z-0" style={{ left: safeDiagram.lanes.length * laneWidth, width: '3px', height: contentHeight, backgroundColor: 'var(--color-border)', opacity: 0.75 }} />
+            <div className="pointer-events-none absolute top-0 z-0" style={{ left: safeDiagram.lanes.length * laneWidth, width: '2px', height: '100%', backgroundColor: '#64748b', opacity: 0.8 }} />
 
-            <div className="absolute left-0 top-0 z-20" style={{ width: safeDiagram.canvas.width, height: headerH }}>
+            <div className="absolute left-0 top-0 z-20" style={{ width: computedCanvasWidth, height: headerH }}>
               {safeDiagram.lanes.map((lane, idx) => {
                 const person = lane.personId ? peopleById.get(lane.personId) : undefined
                 return (
                   <div key={lane.id} data-person-id={person?.id ?? undefined} data-lane-id={lane.id}
                     onClick={() => !handMode && onLaneClick?.(lane)}
                     className="absolute top-0 flex items-center justify-between bg-gradient-to-b from-card to-card/80 px-4 py-3 text-left cursor-pointer hover:from-card hover:to-card/90 transition-all duration-200 border-b border-border/50"
-                    style={{ left: idx * laneWidth, width: laneWidth, height: headerH, borderRight: '3px solid var(--color-border)' }}
+                    style={{ left: idx * laneWidth, width: laneWidth, height: headerH, borderRight: '2px solid rgba(100, 116, 139, 0.8)' }}
                   >
                     <div>
                       <div className="text-xs font-semibold text-text-primary/60 tracking-wide">{lane.title}</div>
@@ -619,7 +611,7 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
               })}
             </div>
 
-            <svg className="pointer-events-none absolute inset-0 z-0" width={safeDiagram.canvas.width} height={docHeight}>
+            <svg className="pointer-events-none absolute inset-0 z-0" width={computedCanvasWidth} height={docHeight}>
               <defs>
                 <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
                   <polygon points="0 0, 10 3, 0 6" fill="var(--color-bg-sap-function)" />
@@ -661,7 +653,7 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
                 return (
                   <g key={e.id}
                     className={mode === 'edit' ? 'cursor-pointer hover:opacity-80' : ''}
-                    style={{ pointerEvents: 'all' }} // <--- FIX: This makes the line clickable again!
+                    style={{ pointerEvents: 'all' }}
                     onClick={(ev) => {
                       if (mode === 'edit') {
                         ev.stopPropagation()
@@ -669,11 +661,9 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
                       }
                     }}
                   >
-                    {/* Invisible thicker area for easier clicking */}
                     <path d={`M ${fromPt.x} ${fromPt.y} L ${bendXOffset} ${fromPt.y} L ${bendXOffset} ${toPt.y} L ${toPt.x} ${toPt.y}`}
                       stroke="transparent" strokeWidth={15} fill="none" />
 
-                    {/* Connector path */}
                     <path d={`M ${fromPt.x} ${fromPt.y} L ${bendXOffset} ${fromPt.y} L ${bendXOffset} ${toPt.y} L ${toPt.x} ${toPt.y}`}
                       stroke={strokeColor} strokeWidth={isSelectedEdge ? 3 : 2} fill="none" strokeOpacity={0.85} strokeLinecap="round" strokeLinejoin="round" markerEnd="url(#arrowhead)" />
                     <circle cx={fromPt.x} cy={fromPt.y} r={3.5} fill={strokeColor} opacity={0.9} />
@@ -739,8 +729,10 @@ type MiniMapProps = {
 function MiniMap({ diagram, docHeight, viewportRef, scale, tx, ty, onJump, positionedNodes, edges }: MiniMapProps) {
   const miniWidth = 220
   const miniHeight = 160
-  const safeCanvasW = diagram.canvas?.width || 2000
-  const s = Math.min(miniWidth / safeCanvasW, miniHeight / docHeight)
+
+  const MIN_LANE_WIDTH = 350;
+  const computedCanvasWidth = Math.max(diagram.canvas?.width || 2000, diagram.lanes.length * MIN_LANE_WIDTH);
+  const s = Math.min(miniWidth / computedCanvasWidth, miniHeight / docHeight)
   const [isDragging, setIsDragging] = useState(false)
 
   const [customPos, setCustomPos] = useState<{ x: number; y: number } | null>(null)
@@ -822,7 +814,7 @@ function MiniMap({ diagram, docHeight, viewportRef, scale, tx, ty, onJump, posit
     >
       <div className="text-xs font-semibold mb-2 text-text-primary/70">Mini Map</div>
       <div className="minimap-canvas relative overflow-hidden rounded-sm border border-border/50 bg-[var(--color-bg-body)]"
-        style={{ width: safeCanvasW * s, height: docHeight * s, cursor: isDragging ? 'grabbing' : 'pointer', pointerEvents: 'auto' }}
+        style={{ width: computedCanvasWidth * s, height: docHeight * s, cursor: isDragging ? 'grabbing' : 'pointer', pointerEvents: 'auto' }}
         onPointerDown={(e) => { setIsDragging(true); e.currentTarget.setPointerCapture(e.pointerId); updateJump(e); }}
         onPointerMove={(e) => { if (isDragging) updateJump(e); }}
         onPointerUp={(e) => { setIsDragging(false); e.currentTarget.releasePointerCapture(e.pointerId); }}
@@ -830,7 +822,7 @@ function MiniMap({ diagram, docHeight, viewportRef, scale, tx, ty, onJump, posit
         <div className="absolute inset-0 pointer-events-none opacity-15 bg-primary/10" />
 
         <div className="absolute inset-0 pointer-events-none">
-          <svg width="100%" height="100%" viewBox={`0 0 ${safeCanvasW} ${docHeight}`}>
+          <svg width="100%" height="100%" viewBox={`0 0 ${computedCanvasWidth} ${docHeight}`}>
             {edges.map((e) => {
               const midX = (e.from.x + e.to.x) / 2
               return (

@@ -90,7 +90,9 @@ export function RoadmapView() {
 
   const handleSave = async () => {
     if (diagram) {
-      const diagramWidth = diagram.canvas?.width || 2000
+      // Dynamic width constraint matching canvas
+      const MIN_LANE_WIDTH = 350;
+      const diagramWidth = Math.max(diagram.canvas?.width || 2000, diagram.lanes.length * MIN_LANE_WIDTH)
       const laneWidth = diagram.lanes.length > 0 ? diagramWidth / diagram.lanes.length : diagramWidth
       const layoutNodes = layoutRoadmapNodes(diagram, { laneWidth, headerH: 64, rowGap: 90 })
 
@@ -121,11 +123,14 @@ export function RoadmapView() {
 
       const headerH = 64
       const rowGap = 90
-      const diagramWidth = diagram.canvas?.width || 2000
+
+      const MIN_LANE_WIDTH = 350;
+      const diagramWidth = Math.max(diagram.canvas?.width || 2000, diagram.lanes.length * MIN_LANE_WIDTH)
       const laneWidth = diagramWidth / Math.max(1, diagram.lanes.length)
 
       const laneIdx = Math.max(0, Math.min(diagram.lanes.length - 1, Math.floor(worldX / laneWidth)))
       const laneId = diagram.lanes[laneIdx].id
+
       const level = Math.max(0, Math.round((worldY - headerH) / rowGap))
 
       // Parse metadata passed as JSON from drag start
@@ -202,7 +207,7 @@ export function RoadmapView() {
           </div>
         )}
 
-        {/* SIDEBAR: Constant spacing via gap-4 */}
+        {/* SIDEBAR: Expanded view with gap-4 and all shapes */}
         <div className="absolute left-6 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-4 rounded-[2rem] border border-[var(--color-border)] bg-[var(--color-bg-card)]/90 backdrop-blur-md py-4 px-2 shadow-sm w-16 overflow-y-auto max-h-[90%] no-scrollbar">
 
           <button
