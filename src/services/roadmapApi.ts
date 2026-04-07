@@ -188,33 +188,36 @@ export const getRoadmapDiagram = async (): Promise<RoadmapDiagram> => {
 };
 
 export const saveRoadmapDiagram = async (diagram: RoadmapDiagram): Promise<void> => {
-  // --- DIRECT API DB SAVE IMPLEMENTATION ---
+  // --- DIRECT API DB SAVE (UPDATE) IMPLEMENTATION ---
 
-  /* try {
-    const response = await fetch('YOUR_API_LINK_HERE', {
-      method: 'POST',
+  if (USE_MOCK) {
+    // Simulate API delay for local testing
+    await new Promise(resolve => setTimeout(resolve, 500));
+    console.log(`Mock: Successfully UPDATED diagram with ID ${diagram.id} in DB via API. Payload:`, diagram);
+    return;
+  }
+
+  try {
+    // 1. Notice the URL includes the diagram.id
+    // 2. The method is changed to 'PUT' which tells your backend to "Update"
+    const response = await fetch(`https://your-api.com/v1/flowchart/${diagram.id}`, {
+      method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
+        // 'Authorization': `Bearer ${localStorage.getItem('token')}` // Uncomment if you need auth
       },
-      // Sending the entire metadata directly to the database
-      body: JSON.stringify(diagram) 
+      // Send the completely updated metadata to replace the old one
+      body: JSON.stringify(diagram)
     });
 
     if (!response.ok) {
-      throw new Error('Failed to save diagram metadata to database');
+      throw new Error(`Failed to update diagram: ${response.statusText}`);
     }
-    
-    console.log('Successfully saved diagram to DB via API');
-  } catch (error) {
-    console.error('Error saving diagram:', error);
-    throw error;
-  }
-  */
 
-  if (USE_MOCK) {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    console.log('Mock: Successfully sent diagram metadata to API payload:', diagram);
-    return;
+    console.log('Successfully updated diagram in DB via API');
+  } catch (error) {
+    console.error('Error updating diagram:', error);
+    throw error;
   }
 };
 

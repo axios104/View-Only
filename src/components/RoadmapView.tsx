@@ -102,10 +102,30 @@ export function RoadmapView() {
         return n
       })
 
+      // This is the exact metadata object that is sent to the API
       const approvedDiagram: RoadmapDiagram = { ...diagram, nodes: updatedNodes, isApproved: true }
-      await saveRoadmapDiagram(approvedDiagram)
-      dispatch(fetchDiagram())
-      alert('Diagram saved successfully!')
+
+      // --- DEBUG FEATURE: DOWNLOAD JSON METADATA ---
+      const jsonString = JSON.stringify(approvedDiagram, null, 2); // Format with 2 spaces for readability
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `roadmap-debug-${Date.now()}.json`; // Name of the downloaded file
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      // ----------------------------------------------
+
+      try {
+        await saveRoadmapDiagram(approvedDiagram)
+        dispatch(fetchDiagram())
+        alert('Diagram saved successfully via API!')
+      } catch (err) {
+        alert('Error saving diagram!')
+        console.error(err)
+      }
     }
   }
 
