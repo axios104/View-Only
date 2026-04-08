@@ -1,4 +1,4 @@
-import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import type { Anchor, Person, RoadmapDiagram, Lane } from '../types/roadmap'
 import { setTranslate, setScale, setSelectedEditEdgeId, setSelectedEditNodeId } from '../store/canvasSlice'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
@@ -211,6 +211,8 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
   const dispatch = useAppDispatch()
   const { scale, tx, ty, handMode, magnifierMode, pendingAddType, mode, selectedEditEdgeId } = useAppSelector((s) => s.canvas)
   const viewportRef = useRef<HTMLDivElement | null>(null)
+  const scaleRef = useRef(scale)
+  scaleRef.current = scale
   const transformLayerRef = useRef<HTMLDivElement | null>(null)
 
   const [dragging, setDragging] = useState(false)
@@ -400,8 +402,8 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
     const px = clientX - rect.left
     const py = clientY - rect.top
 
-    const worldX = (el.scrollLeft + px) / scale
-    const worldY = (el.scrollTop + py) / scale
+    const worldX = (el.scrollLeft + px) / scaleRef.current
+    const worldY = (el.scrollTop + py) / scaleRef.current
 
     const clampedScale = Math.max(0.05, Math.min(4.0, nextScale))
     dispatch(setScale(clampedScale))
@@ -444,15 +446,40 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
   useImperativeHandle(ref, () => ({
     zoomIn: () => {
       const rect = viewportRef.current?.getBoundingClientRect()
-      if (rect) zoomAround(scale * 1.15, rect.left + rect.width / 2, rect.top + rect.height / 2)
+      if (rect) zoomAround(scaleRef.current * 1.15, rect.left + rect.width / 2, rect.top + rect.height / 2)
     },
     zoomOut: () => {
       const rect = viewportRef.current?.getBoundingClientRect()
-      if (rect) zoomAround(scale * 0.85, rect.left + rect.width / 2, rect.top + rect.height / 2)
+      if (rect) zoomAround(scaleRef.current * 0.85, rect.left + rect.width / 2, rect.top + rect.height / 2)
     },
     reset: resetToLeft,
     fit,
   }), [dispatch, scale, docHeight, computedCanvasWidth])
+
+  // Wheel zoom at cursor position (non-passive to allow preventDefault)
+  useEffect(() => {
+    const el = viewportRef.current
+    if (!el) return
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const s = scaleRef.current
+      const nextScale = s * (e.deltaY > 0 ? 0.92 : 1.08)
+      const clamped = Math.max(0.05, Math.min(4.0, nextScale))
+      const rect = el.getBoundingClientRect()
+      const px = e.clientX - rect.left
+      const py = e.clientY - rect.top
+      const worldX = (el.scrollLeft + px) / s
+      const worldY = (el.scrollTop + py) / s
+      dispatch(setScale(clamped))
+      scaleRef.current = clamped
+      requestAnimationFrame(() => {
+        el.scrollLeft = worldX * clamped - px
+        el.scrollTop = worldY * clamped - py
+      })
+    }
+    el.addEventListener('wheel', handleWheel, { passive: false })
+    return () => el.removeEventListener('wheel', handleWheel)
+  }, [dispatch])
 
   return (
     <div className={['relative h-full w-full overflow-hidden', className ?? ''].join(' ')}>
@@ -467,11 +494,10 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
             dispatch(setTranslate({ tx: -el.scrollLeft, ty: -el.scrollTop }))
           }
         }}
-        onWheel={(e) => {
-          if (e.ctrlKey || e.metaKey) {
-            e.preventDefault()
-            zoomAround(scale * (e.deltaY > 0 ? 0.92 : 1.08), e.clientX, e.clientY)
-          }
+        onDoubleClick={(e) => {
+          const target = e.target as HTMLElement
+          if (target.closest('[data-node-id]') || target.closest('[data-lane-id]') || target.closest('[data-person-id]')) return
+          fit()
         }}
         onPointerDown={(e) => {
           if (magnifierMode) {
@@ -727,8 +753,8 @@ type MiniMapProps = {
 }
 
 function MiniMap({ diagram, docHeight, viewportRef, scale, tx, ty, onJump, positionedNodes, edges }: MiniMapProps) {
-  const miniWidth = 220
-  const miniHeight = 160
+  const miniWidth = 280
+  const miniHeight = 200
 
   const MIN_LANE_WIDTH = 280;
   const computedCanvasWidth = Math.max(diagram.canvas?.width || 2000, diagram.lanes.length * MIN_LANE_WIDTH);

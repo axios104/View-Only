@@ -7,7 +7,7 @@ import type { Person, Lane, NodeDetails, RoadmapDiagram } from '../types/roadmap
 import { Modal } from './Modal'
 import { ProcessCanvas, type ProcessCanvasApi } from './ProcessCanvas'
 import { layoutRoadmapNodes, type PositionedRoadmapNode } from '../layout/layoutRoadmap'
-import { Eye, Edit2, Hand, Search, RefreshCw, Save, Trash2, Maximize, Minus, Plus, Columns, FileText, Database } from 'lucide-react'
+import { Eye, Edit2, Hand, Search, RotateCcw, Save, Trash2, Maximize, Minus, Plus, Columns, FileText, Database } from 'lucide-react'
 
 export function RoadmapView() {
   const dispatch = useAppDispatch()
@@ -357,12 +357,11 @@ export function RoadmapView() {
 
               <button
                 type="button"
-                onClick={() => dispatch(fetchDiagram())}
-                disabled={loading}
-                className="grid size-10 place-items-center rounded-xl text-[#2c3e50] hover:bg-btn disabled:opacity-50 transition-colors"
-                title="Refresh Diagram"
+                onClick={() => canvasRef.current?.reset()}
+                className="grid size-10 place-items-center rounded-xl text-[#2c3e50] hover:bg-btn transition-colors"
+                title="Reset View"
               >
-                <RefreshCw size={20} />
+                <RotateCcw size={20} />
               </button>
             </div>
           )}
@@ -370,7 +369,7 @@ export function RoadmapView() {
           <div className="h-[1px] w-8 bg-border my-1" />
 
           <button onClick={() => canvasRef.current?.zoomOut()} className="grid size-10 place-items-center rounded-xl text-[#2c3e50] hover:bg-btn transition-colors" title="Zoom Out"><Minus size={20} /></button>
-          <button onClick={() => canvasRef.current?.reset()} className="grid size-10 place-items-center rounded-xl text-[#2c3e50] hover:bg-btn transition-colors" title="Fit Screen"><Maximize size={18} /></button>
+          <button onClick={() => canvasRef.current?.fit()} className="grid size-10 place-items-center rounded-xl text-[#2c3e50] hover:bg-btn transition-colors" title="Fit Screen"><Maximize size={18} /></button>
           <button onClick={() => canvasRef.current?.zoomIn()} className="grid size-10 place-items-center rounded-xl text-[#2c3e50] hover:bg-btn transition-colors" title="Zoom In"><Plus size={20} /></button>
         </div>
 
