@@ -236,7 +236,7 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
   }, [safeDiagram.lanes])
 
   // --- Dynamic width to support scrolling when many lanes are added ---
-  const MIN_LANE_WIDTH = 350;
+  const MIN_LANE_WIDTH = 280;
   const computedCanvasWidth = Math.max(safeDiagram.canvas.width || 2000, safeDiagram.lanes.length * MIN_LANE_WIDTH);
   const laneWidth = safeDiagram.lanes.length > 0 ? computedCanvasWidth / safeDiagram.lanes.length : computedCanvasWidth;
 
@@ -249,7 +249,7 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
 
   const maxLevel = positionedNodes.reduce((acc, n) => Math.max(acc, n.level), 0)
   const contentHeight = headerH + (maxLevel + 1) * rowGap
-  const docHeight = Math.max(safeDiagram.canvas.height, contentHeight + 50)
+  const docHeight = contentHeight + 80
 
   const nodesById = useMemo(() => {
     const m = new Map<string, PositionedRoadmapNode>()
@@ -434,7 +434,7 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
   const resetToLeft = () => {
     const el = viewportRef.current
     if (!el) return
-    dispatch(setScale(0.85))
+    dispatch(setScale(0.98))
     requestAnimationFrame(() => {
       el.scrollLeft = 0
       el.scrollTop = 0
@@ -730,7 +730,7 @@ function MiniMap({ diagram, docHeight, viewportRef, scale, tx, ty, onJump, posit
   const miniWidth = 220
   const miniHeight = 160
 
-  const MIN_LANE_WIDTH = 350;
+  const MIN_LANE_WIDTH = 280;
   const computedCanvasWidth = Math.max(diagram.canvas?.width || 2000, diagram.lanes.length * MIN_LANE_WIDTH);
   const s = Math.min(miniWidth / computedCanvasWidth, miniHeight / docHeight)
   const [isDragging, setIsDragging] = useState(false)

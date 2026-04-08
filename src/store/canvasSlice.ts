@@ -13,7 +13,7 @@ export type CanvasState = {
 }
 
 const initialState: CanvasState = {
-  scale: 0.85,
+  scale: 0.98,
   tx: 0,
   ty: 0,
   handMode: false,
