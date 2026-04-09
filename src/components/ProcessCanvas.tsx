@@ -421,11 +421,22 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
       const worldX = ex / scale
       const worldY = ey / scale
 
-      const laneIdx = Math.max(0, Math.min(safeDiagram.lanes.length - 1, Math.floor(worldX / laneWidth)))
+      let laneIdx = 0;
+      for (let i = 0; i < laneOffsets.length; i++) {
+        if (worldX >= laneOffsets[i]) {
+          laneIdx = i;
+        } else {
+          break;
+        }
+      }
+      laneIdx = Math.max(0, Math.min(safeDiagram.lanes.length - 1, laneIdx))
       const hoveredLaneId = safeDiagram.lanes[laneIdx]?.id
 
-      const laneMinX = laneIdx * laneWidth + 8
-      const laneMaxX = laneMinX + laneWidth - n.w - 16
+      const thisLaneWidth = laneWidths[laneIdx] ?? laneWidth;
+      const thisLaneOffset = laneOffsets[laneIdx] ?? (laneIdx * laneWidth);
+
+      const laneMinX = thisLaneOffset + 8
+      const laneMaxX = laneMinX + thisLaneWidth - n.w - 16
 
       const nx = worldX - offsetX
       const ny = worldY - offsetY

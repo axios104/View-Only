@@ -91,9 +91,27 @@ export function RoadmapView() {
   const handleSave = async () => {
     if (diagram) {
       const approxViewportW = typeof window !== 'undefined' ? window.innerWidth - 80 : 1200;
-      const laneWidth = diagram.lanes.length > 0 ? Math.max(180, approxViewportW / diagram.lanes.length) : approxViewportW
+      
+      const MIN_LANE_W = 180
+      const nodeCountPerLane = new Map<string, number>()
+      diagram.lanes.forEach(l => nodeCountPerLane.set(l.id, 0))
+      diagram.nodes.forEach(n => {
+        nodeCountPerLane.set(n.laneId, (nodeCountPerLane.get(n.laneId) ?? 0) + 1)
+      })
+      const weights = diagram.lanes.map(l => Math.max(1, nodeCountPerLane.get(l.id) ?? 0))
+      const totalWeight = weights.reduce((a, b) => a + b, 0)
+      const rawWidths = weights.map(w => Math.max(MIN_LANE_W, (w / totalWeight) * approxViewportW))
+      const totalRaw = rawWidths.reduce((a, b) => a + b, 0)
+      const scaleFactor = approxViewportW / totalRaw
+      const laneWidths = rawWidths.map(w => w * scaleFactor)
 
-      const layoutNodes = layoutRoadmapNodes(diagram, { laneWidth, headerH: 110, rowGap: 90 })
+      const laneOffsets: number[] = []
+      let acc = 0
+      for (const w of laneWidths) { laneOffsets.push(acc); acc += w }
+
+      const laneWidth = laneWidths.length > 0 ? laneWidths.reduce((a, b) => a + b, 0) / laneWidths.length : approxViewportW
+
+      const layoutNodes = layoutRoadmapNodes(diagram, { laneWidth, headerH: 110, rowGap: 90, laneWidths, laneOffsets })
 
       const updatedNodes = diagram.nodes.map(n => {
         const layoutNode = layoutNodes.find(ln => ln.id === n.id)
@@ -124,9 +142,33 @@ export function RoadmapView() {
       const rowGap = 90
 
       const approxViewportW = typeof window !== 'undefined' ? window.innerWidth - 80 : 1200;
-      const laneWidth = diagram.lanes.length > 0 ? Math.max(180, approxViewportW / diagram.lanes.length) : approxViewportW
+      
+      const MIN_LANE_W = 180
+      const nodeCountPerLane = new Map<string, number>()
+      diagram.lanes.forEach(l => nodeCountPerLane.set(l.id, 0))
+      diagram.nodes.forEach(n => {
+        nodeCountPerLane.set(n.laneId, (nodeCountPerLane.get(n.laneId) ?? 0) + 1)
+      })
+      const weights = diagram.lanes.map(l => Math.max(1, nodeCountPerLane.get(l.id) ?? 0))
+      const totalWeight = weights.reduce((a, b) => a + b, 0)
+      const rawWidths = weights.map(w => Math.max(MIN_LANE_W, (w / totalWeight) * approxViewportW))
+      const totalRaw = rawWidths.reduce((a, b) => a + b, 0)
+      const scaleFactor = approxViewportW / totalRaw
+      const laneWidths = rawWidths.map(w => w * scaleFactor)
 
-      const laneIdx = Math.max(0, Math.min(diagram.lanes.length - 1, Math.floor(worldX / laneWidth)))
+      const laneOffsets: number[] = []
+      let acc = 0
+      for (const w of laneWidths) { laneOffsets.push(acc); acc += w }
+
+      let laneIdx = 0;
+      for (let i = 0; i < laneOffsets.length; i++) {
+        if (worldX >= laneOffsets[i]) {
+          laneIdx = i;
+        } else {
+          break;
+        }
+      }
+      laneIdx = Math.max(0, Math.min(diagram.lanes.length - 1, laneIdx))
       const laneId = diagram.lanes[laneIdx].id
 
       const level = Math.max(0, Math.round((worldY - headerH) / rowGap))
@@ -205,7 +247,7 @@ export function RoadmapView() {
         )}
 
         {/* SIDEBAR */}
-        <div className="absolute left-6 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-4 rounded-[2rem] border border-[var(--color-border)] bg-[var(--color-bg-card)]/90 backdrop-blur-md py-4 px-2 shadow-sm w-16 overflow-y-auto max-h-[90%] no-scrollbar">
+        <div className="absolute right-6 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-4 rounded-[2rem] border border-[var(--color-border)] bg-[var(--color-bg-card)]/90 backdrop-blur-md py-4 px-2 shadow-sm w-16 overflow-y-auto max-h-[90%] no-scrollbar">
 
           <button
             type="button"
