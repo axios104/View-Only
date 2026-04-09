@@ -273,18 +273,47 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
     return m
   }, [safeDiagram.lanes])
 
-  // Dynamic lane width — fills viewport based on number of lanes
-  const laneWidth = safeDiagram.lanes.length > 0
-    ? Math.max(180, containerW / safeDiagram.lanes.length)
+  // Dynamic lane width — proportional to node count per lane
+  const laneWidths = useMemo(() => {
+    const lanes = safeDiagram.lanes
+    if (lanes.length === 0) return [] as number[]
+    const MIN_LANE_W = 180
+    const nodeCountPerLane = new Map<string, number>()
+    lanes.forEach(l => nodeCountPerLane.set(l.id, 0))
+    safeDiagram.nodes.forEach(n => {
+      nodeCountPerLane.set(n.laneId, (nodeCountPerLane.get(n.laneId) ?? 0) + 1)
+    })
+    // Each lane gets at least weight=1 so empty lanes still show
+    const weights = lanes.map(l => Math.max(1, nodeCountPerLane.get(l.id) ?? 0))
+    const totalWeight = weights.reduce((a, b) => a + b, 0)
+    // Distribute available width proportionally, with minimum
+    const rawWidths = weights.map(w => Math.max(MIN_LANE_W, (w / totalWeight) * containerW))
+    const totalRaw = rawWidths.reduce((a, b) => a + b, 0)
+    // Scale to fill exactly containerW
+    const scaleFactor = containerW / totalRaw
+    return rawWidths.map(w => w * scaleFactor)
+  }, [safeDiagram.lanes, safeDiagram.nodes, containerW])
+
+  const laneOffsets = useMemo(() => {
+    const offsets: number[] = []
+    let acc = 0
+    for (const w of laneWidths) { offsets.push(acc); acc += w }
+    return offsets
+  }, [laneWidths])
+
+  const laneWidth = laneWidths.length > 0
+    ? laneWidths.reduce((a, b) => a + b, 0) / laneWidths.length
     : containerW;
-  const computedCanvasWidth = laneWidth * Math.max(1, safeDiagram.lanes.length);
+  const computedCanvasWidth = laneWidths.length > 0
+    ? laneWidths.reduce((a, b) => a + b, 0)
+    : containerW;
 
   const headerH = 110;
   const rowGap = 90;
 
   const positionedNodes = useMemo(() => {
-    return layoutRoadmapNodes(safeDiagram, { laneWidth, headerH, rowGap })
-  }, [safeDiagram, laneWidth])
+    return layoutRoadmapNodes(safeDiagram, { laneWidth, headerH, rowGap, laneWidths, laneOffsets })
+  }, [safeDiagram, laneWidth, laneWidths, laneOffsets])
 
   const maxLevel = positionedNodes.reduce((acc, n) => Math.max(acc, n.level), 0)
   const contentHeight = headerH + (maxLevel + 1) * rowGap
@@ -301,10 +330,41 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
       const fromN = nodesById.get(e.from || e.source)
       const toN = nodesById.get(e.to || e.target)
       if (!fromN || !toN) return null
-      const from = anchorPoint(fromN, e.fromAnchor ?? 'right')
-      const to = anchorPoint(toN, e.toAnchor ?? 'left')
+
+      // Smart anchor selection based on relative position
+      let fromA: Anchor = e.fromAnchor ?? 'right'
+      let toA: Anchor = e.toAnchor ?? 'left'
+
+      if (!e.fromAnchor && !e.toAnchor) {
+        const fromCx = fromN.x + fromN.w / 2
+        const fromCy = fromN.y + fromN.h / 2
+        const toCx = toN.x + toN.w / 2
+        const toCy = toN.y + toN.h / 2
+        const dx = toCx - fromCx
+        const dy = toCy - fromCy
+
+        // Same lane (small horizontal distance) → vertical connection
+        if (Math.abs(dx) < laneWidth * 0.4) {
+          if (dy > 0) { fromA = 'bottom'; toA = 'top'; }
+          else { fromA = 'top'; toA = 'bottom'; }
+        }
+        // Target is clearly to the right
+        else if (dx > 0) {
+          // If also significantly below, use bottom→top for a cleaner path
+          if (dy > fromN.h * 1.5) { fromA = 'bottom'; toA = 'left'; }
+          else { fromA = 'right'; toA = 'left'; }
+        }
+        // Target is clearly to the left
+        else {
+          if (dy > fromN.h * 1.5) { fromA = 'bottom'; toA = 'right'; }
+          else { fromA = 'left'; toA = 'right'; }
+        }
+      }
+
+      const from = anchorPoint(fromN, fromA)
+      const to = anchorPoint(toN, toA)
       const connector = 'var(--color-bg-sap-function)'
-      return { id: e.id, from, to, connector, label: e.label ?? null, source: e.from || e.source, target: e.to || e.target }
+      return { id: e.id, from, to, connector, label: e.label ?? null, source: e.from || e.source, target: e.to || e.target, fromAnchor: fromA, toAnchor: toA }
     }).filter(Boolean) as any[]
 
     const edgesByPair = new Map<string, any[]>()
@@ -662,18 +722,20 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
           >
             {/* Darker lane lines that go to the bottom of the document */}
             {safeDiagram.lanes.map((lane, idx) => (
-              <div key={`v-grid-${lane.id}`} className="pointer-events-none absolute top-0 z-0" style={{ left: idx * laneWidth, width: '2px', height: '100%', backgroundColor: '#64748b', opacity: 0.8 }} />
+              <div key={`v-grid-${lane.id}`} className="pointer-events-none absolute top-0 z-0" style={{ left: laneOffsets[idx] ?? (idx * laneWidth), width: '2px', height: '100%', backgroundColor: '#64748b', opacity: 0.8 }} />
             ))}
-            <div className="pointer-events-none absolute top-0 z-0" style={{ left: safeDiagram.lanes.length * laneWidth, width: '2px', height: '100%', backgroundColor: '#64748b', opacity: 0.8 }} />
+            <div className="pointer-events-none absolute top-0 z-0" style={{ left: computedCanvasWidth, width: '2px', height: '100%', backgroundColor: '#64748b', opacity: 0.8 }} />
 
             <div className="absolute left-0 top-0 z-20" style={{ width: computedCanvasWidth, height: headerH }}>
               {safeDiagram.lanes.map((lane, idx) => {
                 const person = lane.personId ? peopleById.get(lane.personId) : undefined
+                const thisW = laneWidths[idx] ?? laneWidth
+                const thisX = laneOffsets[idx] ?? (idx * laneWidth)
                 return (
                   <div key={lane.id} data-person-id={person?.id ?? undefined} data-lane-id={lane.id}
                     onClick={() => !handMode && onLaneClick?.(lane)}
                     className="absolute top-0 flex flex-col items-center justify-center bg-white px-2 py-2 text-center cursor-pointer hover:bg-slate-50 transition-all duration-200 border-b border-slate-200 z-20"
-                    style={{ left: idx * laneWidth, width: laneWidth, height: headerH, borderRight: '1px solid #cbd5e1' }}
+                    style={{ left: thisX, width: thisW, height: headerH, borderRight: '1px solid #cbd5e1' }}
                   >
                     <div className="text-[11px] font-semibold text-slate-600 tracking-wide mb-1.5">
                       Carries out & Supports by
@@ -716,17 +778,38 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
                 const fromPt = anchorPoint(fromNode, e.fromAnchor ?? 'right')
                 const toPt = anchorPoint(toNode, e.toAnchor ?? 'left')
 
-                const midX = (fromPt.x + toPt.x) / 2
-                const vGap = Math.abs(toPt.y - fromPt.y)
-                const bendY = fromPt.y + vGap / 2
-                const isGoingRight = toPt.x >= fromPt.x
-                const labelX = isGoingRight ? midX + 40 : midX - 40
-                const labelY = bendY - 15
-                const offset = (e.offset || 0)
-                const bendXOffset = midX + offset
-
                 const isSelectedEdge = selectedEditEdgeId === e.id
                 const strokeColor = isSelectedEdge ? 'var(--color-primary)' : e.connector
+                const offset = (e.offset || 0)
+
+                // Build path based on connection direction
+                let pathD: string
+                let labelX: number
+                let labelY: number
+                const isVertical = (e.fromAnchor === 'bottom' && e.toAnchor === 'top') ||
+                                   (e.fromAnchor === 'top' && e.toAnchor === 'bottom')
+                const isMixed = (e.fromAnchor === 'bottom' || e.fromAnchor === 'top') &&
+                                (e.toAnchor === 'left' || e.toAnchor === 'right')
+
+                if (isVertical) {
+                  // Straight vertical (with optional horizontal offset for parallel edges)
+                  const midY = (fromPt.y + toPt.y) / 2 + offset
+                  pathD = `M ${fromPt.x} ${fromPt.y} L ${fromPt.x} ${midY} L ${toPt.x} ${midY} L ${toPt.x} ${toPt.y}`
+                  labelX = Math.max(fromPt.x, toPt.x) + 10
+                  labelY = midY - 5
+                } else if (isMixed) {
+                  // L-shaped: go vertical first, then horizontal
+                  pathD = `M ${fromPt.x} ${fromPt.y} L ${fromPt.x} ${toPt.y} L ${toPt.x} ${toPt.y}`
+                  labelX = (fromPt.x + toPt.x) / 2
+                  labelY = toPt.y - 10
+                } else {
+                  // Standard horizontal→vertical→horizontal (stepped)
+                  const midX = (fromPt.x + toPt.x) / 2 + offset
+                  pathD = `M ${fromPt.x} ${fromPt.y} L ${midX} ${fromPt.y} L ${midX} ${toPt.y} L ${toPt.x} ${toPt.y}`
+                  const isGoingRight = toPt.x >= fromPt.x
+                  labelX = isGoingRight ? midX + 8 : midX - 8
+                  labelY = (fromPt.y + toPt.y) / 2 - 8
+                }
 
                 return (
                   <g key={e.id}
@@ -739,15 +822,15 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
                       }
                     }}
                   >
-                    <path d={`M ${fromPt.x} ${fromPt.y} L ${bendXOffset} ${fromPt.y} L ${bendXOffset} ${toPt.y} L ${toPt.x} ${toPt.y}`}
+                    <path d={pathD}
                       stroke="transparent" strokeWidth={15} fill="none" />
 
-                    <path d={`M ${fromPt.x} ${fromPt.y} L ${bendXOffset} ${fromPt.y} L ${bendXOffset} ${toPt.y} L ${toPt.x} ${toPt.y}`}
+                    <path d={pathD}
                       stroke={strokeColor} strokeWidth={isSelectedEdge ? 3 : 2} fill="none" strokeOpacity={0.85} strokeLinecap="round" strokeLinejoin="round" markerEnd="url(#arrowhead)" />
                     <circle cx={fromPt.x} cy={fromPt.y} r={3.5} fill={strokeColor} opacity={0.9} />
                     <circle cx={toPt.x} cy={toPt.y} r={3.5} fill={strokeColor} opacity={0.9} />
                     {e.label && (
-                      <text x={labelX} y={labelY} textAnchor={isGoingRight ? 'start' : 'end'} fontSize={11} fill="var(--color-text-primary)" fontWeight={600}
+                      <text x={labelX} y={labelY} textAnchor="start" fontSize={11} fill="var(--color-text-primary)" fontWeight={600}
                         style={{ pointerEvents: 'none' }}>
                         {e.label}
                       </text>

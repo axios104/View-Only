@@ -15,6 +15,8 @@ export type LayoutOptions = {
   laneWidth: number
   headerH: number
   rowGap?: number
+  laneWidths?: number[]
+  laneOffsets?: number[]
 }
 
 // Map the API 'type' directly to its visual footprint utilizing your original theme CSS variables
@@ -89,11 +91,15 @@ export function layoutRoadmapNodes(diagram: RoadmapDiagram, opts: LayoutOptions)
   return nodesToLayout.map((n: RoadmapNode) => {
     const laneIdx = laneIndexById.get(n.laneId) ?? 0
     
+    // Use per-lane width if available, otherwise fall back to uniform
+    const thisLaneWidth = opts.laneWidths?.[laneIdx] ?? opts.laneWidth
+    const thisLaneOffset = opts.laneOffsets?.[laneIdx] ?? (laneIdx * opts.laneWidth)
+    
     // 1. Fetch visual footprint based entirely on 'type'
     const visualConfig = NODE_TYPE_MAP[n.type] || NODE_TYPE_MAP['default']
     
     // Strict bounds ensures a component never bleeds outside its single grid box
-    const maxW = opts.laneWidth - lanePadX * 2
+    const maxW = thisLaneWidth - lanePadX * 2
     const maxH = rowGap - lanePadY * 2
     
     let w = visualConfig.w
@@ -106,17 +112,17 @@ export function layoutRoadmapNodes(diagram: RoadmapDiagram, opts: LayoutOptions)
     }
 
     // Grid cell boundaries
-    const cellX = laneIdx * opts.laneWidth
+    const cellX = thisLaneOffset
     const cellY = opts.headerH + n.level * rowGap
     
     // Position centered natively
-    let x = cellX + (opts.laneWidth - w) / 2
+    let x = cellX + (thisLaneWidth - w) / 2
     
     // If order modifier is used, shift it but strictly clamp it inside the box
     if (n.order !== 0 && n.order !== undefined) {
       const offset = n.order * (w + 10)
       x += offset
-      x = Math.max(cellX + lanePadX, Math.min(cellX + opts.laneWidth - w - lanePadX, x))
+      x = Math.max(cellX + lanePadX, Math.min(cellX + thisLaneWidth - w - lanePadX, x))
     }
     
     // Vertically center inside its level (row)
@@ -124,7 +130,7 @@ export function layoutRoadmapNodes(diagram: RoadmapDiagram, opts: LayoutOptions)
 
     // If manual drag coordinates exist, override the calc while strictly clamping X to the lane
     if (n.posX !== undefined) {
-      x = Math.max(cellX + lanePadX, Math.min(cellX + opts.laneWidth - w - lanePadX, n.posX))
+      x = Math.max(cellX + lanePadX, Math.min(cellX + thisLaneWidth - w - lanePadX, n.posX))
     }
     if (n.posY !== undefined) {
       y = Math.max(opts.headerH + lanePadY, n.posY)
