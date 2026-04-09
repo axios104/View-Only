@@ -7,7 +7,7 @@ import type { Person, Lane, NodeDetails, RoadmapDiagram } from '../types/roadmap
 import { Modal } from './Modal'
 import { ProcessCanvas, type ProcessCanvasApi } from './ProcessCanvas'
 import { layoutRoadmapNodes, type PositionedRoadmapNode } from '../layout/layoutRoadmap'
-import { Eye, Edit2, Hand, Search, RotateCcw, Save, Trash2, Maximize, Minus, Plus, Columns, FileText, Database } from 'lucide-react'
+import { Eye, Edit2, Hand, Search, RefreshCw, Save, Trash2, Maximize, Minus, Plus, Columns, FileText, Database } from 'lucide-react'
 
 export function RoadmapView() {
   const dispatch = useAppDispatch()
@@ -90,11 +90,11 @@ export function RoadmapView() {
 
   const handleSave = async () => {
     if (diagram) {
-      // Dynamic width constraint matching canvas
       const MIN_LANE_WIDTH = 350;
       const diagramWidth = Math.max(diagram.canvas?.width || 2000, diagram.lanes.length * MIN_LANE_WIDTH)
       const laneWidth = diagram.lanes.length > 0 ? diagramWidth / diagram.lanes.length : diagramWidth
-      const layoutNodes = layoutRoadmapNodes(diagram, { laneWidth, headerH: 64, rowGap: 90 })
+
+      const layoutNodes = layoutRoadmapNodes(diagram, { laneWidth, headerH: 110, rowGap: 90 })
 
       const updatedNodes = diagram.nodes.map(n => {
         const layoutNode = layoutNodes.find(ln => ln.id === n.id)
@@ -109,7 +109,7 @@ export function RoadmapView() {
       try {
         await saveRoadmapDiagram(approvedDiagram)
         dispatch(fetchDiagram())
-        alert('Diagram saved successfully via API!')
+        alert('Diagram saved successfully!')
       } catch (err) {
         alert('Error saving diagram!')
         console.error(err)
@@ -121,7 +121,7 @@ export function RoadmapView() {
     if (mode === 'edit') {
       if (!diagram || diagram.lanes.length === 0) return
 
-      const headerH = 64
+      const headerH = 110
       const rowGap = 90
 
       const MIN_LANE_WIDTH = 350;
@@ -133,7 +133,6 @@ export function RoadmapView() {
 
       const level = Math.max(0, Math.round((worldY - headerH) / rowGap))
 
-      // Parse metadata passed as JSON from drag start
       let nodeType = typeString;
       let status: any = undefined;
 
@@ -207,7 +206,7 @@ export function RoadmapView() {
           </div>
         )}
 
-        {/* SIDEBAR: Expanded view with gap-4 and all shapes */}
+        {/* SIDEBAR */}
         <div className="absolute left-6 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-4 rounded-[2rem] border border-[var(--color-border)] bg-[var(--color-bg-card)]/90 backdrop-blur-md py-4 px-2 shadow-sm w-16 overflow-y-auto max-h-[90%] no-scrollbar">
 
           <button
@@ -242,70 +241,76 @@ export function RoadmapView() {
               <button
                 draggable
                 onDragStart={(e) => e.dataTransfer.setData('application/node-type', JSON.stringify({ type: 'process', status: 'completed' }))}
-                className="grid place-items-center cursor-grab text-sap hover:scale-110 transition-transform"
+                className="grid place-items-center cursor-grab hover:scale-110 transition-transform"
                 title="Add SAP Process (Blue)"
               >
-                <div className="w-[24px] h-[18px] border-[2px] border-current bg-sap/20 rounded-md pointer-events-none"></div>
+                <div style={{ backgroundColor: '#E3F2FD', borderColor: '#1565C0' }} className="w-[24px] h-[18px] border-[2px] rounded-md pointer-events-none"></div>
               </button>
 
-              {/* Legacy Process (Orange - Rounded Rect) */}
+              {/* Legacy Process (Orange - Parallelogram) */}
               <button
                 draggable
                 onDragStart={(e) => e.dataTransfer.setData('application/node-type', JSON.stringify({ type: 'process', status: 'in-progress' }))}
-                className="grid place-items-center cursor-grab text-legacy hover:scale-110 transition-transform"
+                className="grid place-items-center cursor-grab hover:scale-110 transition-transform"
                 title="Add Legacy Process (Orange)"
               >
-                <div className="w-[24px] h-[18px] border-[2px] border-current bg-legacy/20 rounded-md pointer-events-none"></div>
+                <svg className="w-[26px] h-[18px] pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+                  <polygon points="15,2 98,2 85,98 2,98" fill="#FFF3E0" stroke="#E65100" strokeWidth="8" strokeLinejoin="round" />
+                </svg>
               </button>
 
-              {/* Manual Process (Green - Rounded Rect) */}
+              {/* Manual Process (Green - Trapezoid) */}
               <button
                 draggable
                 onDragStart={(e) => e.dataTransfer.setData('application/node-type', JSON.stringify({ type: 'process', status: 'planned' }))}
-                className="grid place-items-center cursor-grab text-manual hover:scale-110 transition-transform"
+                className="grid place-items-center cursor-grab hover:scale-110 transition-transform"
                 title="Add Manual Process (Green)"
               >
-                <div className="w-[24px] h-[18px] border-[2px] border-current bg-manual/20 rounded-md pointer-events-none"></div>
+                <svg className="w-[26px] h-[18px] pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+                  <polygon points="10,2 90,2 98,98 2,98" fill="#E8F5E9" stroke="#2E7D32" strokeWidth="8" strokeLinejoin="round" />
+                </svg>
               </button>
 
-              {/* Decision (Diamond) */}
+              {/* Decision (Yellow Diamond) */}
               <button
                 draggable
                 onDragStart={(e) => e.dataTransfer.setData('application/node-type', JSON.stringify({ type: 'decision' }))}
-                className="grid place-items-center cursor-grab text-slate-600 hover:scale-110 transition-transform"
+                className="grid place-items-center cursor-grab hover:scale-110 transition-transform"
                 title="Add Decision Node"
               >
-                <div className="w-[18px] h-[18px] border-[2px] border-current transform rotate-45 pointer-events-none bg-white"></div>
+                <div style={{ backgroundColor: '#FEFCE8', borderColor: '#EAB308' }} className="w-[18px] h-[18px] border-[2px] transform rotate-45 pointer-events-none"></div>
               </button>
 
-              {/* Terminator (Capsule) */}
+              {/* Terminator (Purple Hexagon) */}
               <button
                 draggable
                 onDragStart={(e) => e.dataTransfer.setData('application/node-type', JSON.stringify({ type: 'terminator' }))}
-                className="grid place-items-center cursor-grab text-slate-600 hover:scale-110 transition-transform"
+                className="grid place-items-center cursor-grab hover:scale-110 transition-transform"
                 title="Add Terminator Node"
               >
-                <div className="w-[26px] h-[14px] border-[2px] border-current rounded-full pointer-events-none bg-white"></div>
+                <svg className="w-[26px] h-[18px] pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+                  <polygon points="15,2 85,2 98,50 85,98 15,98 2,50" fill="#F3E8FF" stroke="#A855F7" strokeWidth="8" strokeLinejoin="round" />
+                </svg>
               </button>
 
-              {/* Document (Icon) */}
+              {/* Document (Slate Icon) */}
               <button
                 draggable
                 onDragStart={(e) => e.dataTransfer.setData('application/node-type', JSON.stringify({ type: 'document' }))}
-                className="grid place-items-center cursor-grab text-slate-600 hover:scale-110 transition-transform"
+                className="grid place-items-center cursor-grab hover:scale-110 transition-transform"
                 title="Add Document Node"
               >
-                <FileText size={22} className="pointer-events-none" />
+                <FileText size={22} color="#475569" className="pointer-events-none" />
               </button>
 
-              {/* Data (Database Icon) */}
+              {/* Data (Slate Database Icon) */}
               <button
                 draggable
                 onDragStart={(e) => e.dataTransfer.setData('application/node-type', JSON.stringify({ type: 'data' }))}
-                className="grid place-items-center cursor-grab text-slate-600 hover:scale-110 transition-transform"
+                className="grid place-items-center cursor-grab hover:scale-110 transition-transform"
                 title="Add Data Node"
               >
-                <Database size={22} className="pointer-events-none" />
+                <Database size={22} color="#475569" className="pointer-events-none" />
               </button>
 
               <div className="h-[1px] w-8 bg-border my-1" />
@@ -357,11 +362,12 @@ export function RoadmapView() {
 
               <button
                 type="button"
-                onClick={() => canvasRef.current?.reset()}
-                className="grid size-10 place-items-center rounded-xl text-[#2c3e50] hover:bg-btn transition-colors"
-                title="Reset View"
+                onClick={() => dispatch(fetchDiagram())}
+                disabled={loading}
+                className="grid size-10 place-items-center rounded-xl text-[#2c3e50] hover:bg-btn disabled:opacity-50 transition-colors"
+                title="Refresh Diagram"
               >
-                <RotateCcw size={20} />
+                <RefreshCw size={20} />
               </button>
             </div>
           )}
@@ -369,7 +375,7 @@ export function RoadmapView() {
           <div className="h-[1px] w-8 bg-border my-1" />
 
           <button onClick={() => canvasRef.current?.zoomOut()} className="grid size-10 place-items-center rounded-xl text-[#2c3e50] hover:bg-btn transition-colors" title="Zoom Out"><Minus size={20} /></button>
-          <button onClick={() => canvasRef.current?.fit()} className="grid size-10 place-items-center rounded-xl text-[#2c3e50] hover:bg-btn transition-colors" title="Fit Screen"><Maximize size={18} /></button>
+          <button onClick={() => canvasRef.current?.reset()} className="grid size-10 place-items-center rounded-xl text-[#2c3e50] hover:bg-btn transition-colors" title="Fit Screen"><Maximize size={18} /></button>
           <button onClick={() => canvasRef.current?.zoomIn()} className="grid size-10 place-items-center rounded-xl text-[#2c3e50] hover:bg-btn transition-colors" title="Zoom In"><Plus size={20} /></button>
         </div>
 
