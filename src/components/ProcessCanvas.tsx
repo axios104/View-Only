@@ -130,11 +130,11 @@ function NodeBg({ shape, fill, border }: { shape: string, fill: string, border: 
     )
   }
   if (shape === 'input') {
-    // "2 Hex" — Rect in front, small Hexagon peeking behind on the right
+    // "2 Hex" — Full hexagon behind, rounded rect overlapping from the left
     return (
       <svg className="absolute inset-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 100 100" style={{ filter: dropShadow }}>
-        <polygon points="70,8 88,8 98,28 98,72 88,92 70,92" fill={fill} stroke={border} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
-        <rect x="2" y="2" width="80" height="96" rx="6" fill={fill} stroke={border} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+        <polygon points="18,2 82,2 98,50 82,98 18,98 2,50" fill={fill} stroke={border} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+        <rect x="2" y="6" width="72" height="88" rx="8" fill={fill} stroke={border} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
       </svg>
     )
   }

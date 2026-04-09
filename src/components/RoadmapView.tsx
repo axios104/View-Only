@@ -243,8 +243,8 @@ export function RoadmapView() {
                 title="Add Input (2 Hex)"
               >
                 <svg className="w-[28px] h-[22px] pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
-                  <polygon points="50,0 82,0 98,24 82,48 50,48 34,24" fill="#C8E6C9" stroke="#2E7D32" strokeWidth="6" strokeLinejoin="round" />
-                  <rect x="2" y="18" width="76" height="80" rx="6" fill="#C8E6C9" stroke="#2E7D32" strokeWidth="6" strokeLinejoin="round" />
+                  <polygon points="18,2 82,2 98,50 82,98 18,98 2,50" fill="#C8E6C9" stroke="#2E7D32" strokeWidth="6" strokeLinejoin="round" />
+                  <rect x="2" y="6" width="72" height="88" rx="8" fill="#C8E6C9" stroke="#2E7D32" strokeWidth="6" strokeLinejoin="round" />
                 </svg>
               </button>
 
