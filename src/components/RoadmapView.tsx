@@ -7,7 +7,7 @@ import type { Person, Lane, NodeDetails, RoadmapDiagram } from '../types/roadmap
 import { Modal } from './Modal'
 import { ProcessCanvas, type ProcessCanvasApi } from './ProcessCanvas'
 import { layoutRoadmapNodes, type PositionedRoadmapNode } from '../layout/layoutRoadmap'
-import { Eye, Edit2, Hand, Search, RefreshCw, Save, Trash2, Maximize, Minus, Plus, Columns, FileText, Database } from 'lucide-react'
+import { Eye, Edit2, Hand, Search, RotateCcw, Save, Trash2, Maximize, Minus, Plus, Columns } from 'lucide-react'
 
 export function RoadmapView() {
   const dispatch = useAppDispatch()
@@ -90,9 +90,8 @@ export function RoadmapView() {
 
   const handleSave = async () => {
     if (diagram) {
-      const MIN_LANE_WIDTH = 350;
-      const diagramWidth = Math.max(diagram.canvas?.width || 2000, diagram.lanes.length * MIN_LANE_WIDTH)
-      const laneWidth = diagram.lanes.length > 0 ? diagramWidth / diagram.lanes.length : diagramWidth
+      const approxViewportW = typeof window !== 'undefined' ? window.innerWidth - 80 : 1200;
+      const laneWidth = diagram.lanes.length > 0 ? Math.max(180, approxViewportW / diagram.lanes.length) : approxViewportW
 
       const layoutNodes = layoutRoadmapNodes(diagram, { laneWidth, headerH: 110, rowGap: 90 })
 
@@ -124,9 +123,8 @@ export function RoadmapView() {
       const headerH = 110
       const rowGap = 90
 
-      const MIN_LANE_WIDTH = 350;
-      const diagramWidth = Math.max(diagram.canvas?.width || 2000, diagram.lanes.length * MIN_LANE_WIDTH)
-      const laneWidth = diagramWidth / Math.max(1, diagram.lanes.length)
+      const approxViewportW = typeof window !== 'undefined' ? window.innerWidth - 80 : 1200;
+      const laneWidth = diagram.lanes.length > 0 ? Math.max(180, approxViewportW / diagram.lanes.length) : approxViewportW
 
       const laneIdx = Math.max(0, Math.min(diagram.lanes.length - 1, Math.floor(worldX / laneWidth)))
       const laneId = diagram.lanes[laneIdx].id
@@ -237,80 +235,79 @@ export function RoadmapView() {
 
           {mode === 'edit' ? (
             <div className="flex flex-col items-center gap-5 w-full">
-              {/* SAP Process (Blue - Rounded Rect) */}
-              <button
-                draggable
-                onDragStart={(e) => e.dataTransfer.setData('application/node-type', JSON.stringify({ type: 'process', status: 'completed' }))}
-                className="grid place-items-center cursor-grab hover:scale-110 transition-transform"
-                title="Add SAP Process (Blue)"
-              >
-                <div style={{ backgroundColor: '#E3F2FD', borderColor: '#1565C0' }} className="w-[24px] h-[18px] border-[2px] rounded-md pointer-events-none"></div>
-              </button>
-
-              {/* Legacy Process (Orange - Parallelogram) */}
-              <button
-                draggable
-                onDragStart={(e) => e.dataTransfer.setData('application/node-type', JSON.stringify({ type: 'process', status: 'in-progress' }))}
-                className="grid place-items-center cursor-grab hover:scale-110 transition-transform"
-                title="Add Legacy Process (Orange)"
-              >
-                <svg className="w-[26px] h-[18px] pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
-                  <polygon points="15,2 98,2 85,98 2,98" fill="#FFF3E0" stroke="#E65100" strokeWidth="8" strokeLinejoin="round" />
-                </svg>
-              </button>
-
-              {/* Manual Process (Green - Trapezoid) */}
-              <button
-                draggable
-                onDragStart={(e) => e.dataTransfer.setData('application/node-type', JSON.stringify({ type: 'process', status: 'planned' }))}
-                className="grid place-items-center cursor-grab hover:scale-110 transition-transform"
-                title="Add Manual Process (Green)"
-              >
-                <svg className="w-[26px] h-[18px] pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
-                  <polygon points="10,2 90,2 98,98 2,98" fill="#E8F5E9" stroke="#2E7D32" strokeWidth="8" strokeLinejoin="round" />
-                </svg>
-              </button>
-
-              {/* Decision (Yellow Diamond) */}
-              <button
-                draggable
-                onDragStart={(e) => e.dataTransfer.setData('application/node-type', JSON.stringify({ type: 'decision' }))}
-                className="grid place-items-center cursor-grab hover:scale-110 transition-transform"
-                title="Add Decision Node"
-              >
-                <div style={{ backgroundColor: '#FEFCE8', borderColor: '#EAB308' }} className="w-[18px] h-[18px] border-[2px] transform rotate-45 pointer-events-none"></div>
-              </button>
-
-              {/* Terminator (Purple Hexagon) */}
-              <button
-                draggable
-                onDragStart={(e) => e.dataTransfer.setData('application/node-type', JSON.stringify({ type: 'terminator' }))}
-                className="grid place-items-center cursor-grab hover:scale-110 transition-transform"
-                title="Add Terminator Node"
-              >
-                <svg className="w-[26px] h-[18px] pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
-                  <polygon points="15,2 85,2 98,50 85,98 15,98 2,50" fill="#F3E8FF" stroke="#A855F7" strokeWidth="8" strokeLinejoin="round" />
-                </svg>
-              </button>
-
-              {/* Document (Slate Icon) */}
-              <button
-                draggable
-                onDragStart={(e) => e.dataTransfer.setData('application/node-type', JSON.stringify({ type: 'document' }))}
-                className="grid place-items-center cursor-grab hover:scale-110 transition-transform"
-                title="Add Document Node"
-              >
-                <FileText size={22} color="#475569" className="pointer-events-none" />
-              </button>
-
-              {/* Data (Slate Database Icon) */}
+              {/* Input (2 Hex — Green rect + hexagon) */}
               <button
                 draggable
                 onDragStart={(e) => e.dataTransfer.setData('application/node-type', JSON.stringify({ type: 'data' }))}
                 className="grid place-items-center cursor-grab hover:scale-110 transition-transform"
-                title="Add Data Node"
+                title="Add Input (2 Hex)"
               >
-                <Database size={22} color="#475569" className="pointer-events-none" />
+                <svg className="w-[28px] h-[22px] pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+                  <polygon points="50,0 82,0 98,24 82,48 50,48 34,24" fill="#C8E6C9" stroke="#2E7D32" strokeWidth="6" strokeLinejoin="round" />
+                  <rect x="2" y="18" width="76" height="80" rx="6" fill="#C8E6C9" stroke="#2E7D32" strokeWidth="6" strokeLinejoin="round" />
+                </svg>
+              </button>
+
+              {/* SAP Function — Blue Rect */}
+              <button
+                draggable
+                onDragStart={(e) => e.dataTransfer.setData('application/node-type', JSON.stringify({ type: 'process', status: 'completed' }))}
+                className="grid place-items-center cursor-grab hover:scale-110 transition-transform"
+                title="Add SAP Function (Blue)"
+              >
+                <div style={{ backgroundColor: '#DBEAFE', borderColor: '#1E40AF' }} className="w-[24px] h-[18px] border-[2px] rounded-[3px] pointer-events-none"></div>
+              </button>
+
+              {/* Legacy Function — Purple Rect */}
+              <button
+                draggable
+                onDragStart={(e) => e.dataTransfer.setData('application/node-type', JSON.stringify({ type: 'process', status: 'in-progress' }))}
+                className="grid place-items-center cursor-grab hover:scale-110 transition-transform"
+                title="Add Legacy Function (Purple)"
+              >
+                <div style={{ backgroundColor: '#F3E5F5', borderColor: '#7B1FA2' }} className="w-[24px] h-[18px] border-[2px] rounded-[3px] pointer-events-none"></div>
+              </button>
+
+              {/* Manual Function — Red Rect */}
+              <button
+                draggable
+                onDragStart={(e) => e.dataTransfer.setData('application/node-type', JSON.stringify({ type: 'process', status: 'planned' }))}
+                className="grid place-items-center cursor-grab hover:scale-110 transition-transform"
+                title="Add Manual Function (Red)"
+              >
+                <div style={{ backgroundColor: '#FFCDD2', borderColor: '#C62828' }} className="w-[24px] h-[18px] border-[2px] rounded-[3px] pointer-events-none"></div>
+              </button>
+
+              {/* Technical Term — Gray Rect */}
+              <button
+                draggable
+                onDragStart={(e) => e.dataTransfer.setData('application/node-type', JSON.stringify({ type: 'process' }))}
+                className="grid place-items-center cursor-grab hover:scale-110 transition-transform"
+                title="Add Technical Term (Gray)"
+              >
+                <div style={{ backgroundColor: '#E0E0E0', borderColor: '#616161' }} className="w-[24px] h-[18px] border-[2px] rounded-[3px] pointer-events-none"></div>
+              </button>
+
+              {/* Decision — Yellow Diamond */}
+              <button
+                draggable
+                onDragStart={(e) => e.dataTransfer.setData('application/node-type', JSON.stringify({ type: 'decision' }))}
+                className="grid place-items-center cursor-grab hover:scale-110 transition-transform"
+                title="Add Decision (Diamond)"
+              >
+                <div style={{ backgroundColor: '#FFF9C4', borderColor: '#F9A825' }} className="w-[16px] h-[16px] border-[2px] transform rotate-45 pointer-events-none"></div>
+              </button>
+
+              {/* Start / End — Teal Hexagon */}
+              <button
+                draggable
+                onDragStart={(e) => e.dataTransfer.setData('application/node-type', JSON.stringify({ type: 'terminator' }))}
+                className="grid place-items-center cursor-grab hover:scale-110 transition-transform"
+                title="Add Start/End (Hexagon)"
+              >
+                <svg className="w-[26px] h-[18px] pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+                  <polygon points="20,2 80,2 98,50 80,98 20,98 2,50" fill="#E0F2F1" stroke="#00695C" strokeWidth="6" strokeLinejoin="round" />
+                </svg>
               </button>
 
               <div className="h-[1px] w-8 bg-border my-1" />
@@ -362,12 +359,11 @@ export function RoadmapView() {
 
               <button
                 type="button"
-                onClick={() => dispatch(fetchDiagram())}
-                disabled={loading}
-                className="grid size-10 place-items-center rounded-xl text-[#2c3e50] hover:bg-btn disabled:opacity-50 transition-colors"
-                title="Refresh Diagram"
+                onClick={() => canvasRef.current?.reset()}
+                className="grid size-10 place-items-center rounded-xl text-[#2c3e50] hover:bg-btn transition-colors"
+                title="Reset View"
               >
-                <RefreshCw size={20} />
+                <RotateCcw size={20} />
               </button>
             </div>
           )}
@@ -375,7 +371,7 @@ export function RoadmapView() {
           <div className="h-[1px] w-8 bg-border my-1" />
 
           <button onClick={() => canvasRef.current?.zoomOut()} className="grid size-10 place-items-center rounded-xl text-[#2c3e50] hover:bg-btn transition-colors" title="Zoom Out"><Minus size={20} /></button>
-          <button onClick={() => canvasRef.current?.reset()} className="grid size-10 place-items-center rounded-xl text-[#2c3e50] hover:bg-btn transition-colors" title="Fit Screen"><Maximize size={18} /></button>
+          <button onClick={() => canvasRef.current?.fit()} className="grid size-10 place-items-center rounded-xl text-[#2c3e50] hover:bg-btn transition-colors" title="Fit Screen"><Maximize size={18} /></button>
           <button onClick={() => canvasRef.current?.zoomIn()} className="grid size-10 place-items-center rounded-xl text-[#2c3e50] hover:bg-btn transition-colors" title="Zoom In"><Plus size={20} /></button>
         </div>
 

@@ -1,4 +1,4 @@
-import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import type { Anchor, Person, RoadmapDiagram, Lane } from '../types/roadmap'
 import { setTranslate, setScale, setSelectedEditEdgeId, setSelectedEditNodeId } from '../store/canvasSlice'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
@@ -47,26 +47,26 @@ function getMappedNodeStyle(n: PositionedRoadmapNode) {
 
   if (type === 'process' || !type) {
     if (status === 'sap' || status === 'completed') {
-      fill = '#E3F2FD'; border = '#1565C0'; shape = 'rounded-rect';
+      fill = '#DBEAFE'; border = '#1E40AF'; shape = 'rounded-rect';       // SAP Function — Blue
     } else if (status === 'legacy' || status === 'in-progress') {
-      fill = '#FFF3E0'; border = '#E65100'; shape = 'parallelogram'; // Restored Parallelogram
+      fill = '#F3E5F5'; border = '#7B1FA2'; shape = 'rounded-rect';       // Legacy Function — Purple
     } else if (status === 'manual' || status === 'planned') {
-      fill = '#E8F5E9'; border = '#2E7D32'; shape = 'trapezoid'; // Restored Trapezoid
+      fill = '#FFCDD2'; border = '#C62828'; shape = 'rounded-rect';       // Manual Function — Red
     } else {
-      fill = '#F8FAFC'; border = '#64748B'; shape = 'rounded-rect';
+      fill = '#E0E0E0'; border = '#616161'; shape = 'rounded-rect';       // Technical Term — Gray
     }
   }
   else if (type === 'decision') {
-    fill = '#FEFCE8'; border = '#EAB308'; shape = 'decision';
+    fill = '#FFF9C4'; border = '#F9A825'; shape = 'decision';             // Decision — Yellow diamond
   }
   else if (type === 'terminator') {
-    fill = '#F3E8FF'; border = '#A855F7'; shape = 'hexagon'; // Restored Hexagon
+    fill = '#E0F2F1'; border = '#00695C'; shape = 'hexagon';              // Start/End — Hexagon
   }
   else if (type === 'document') {
     fill = '#F1F5F9'; border = '#475569'; shape = 'document';
   }
   else if (type === 'data' || type === 'database') {
-    fill = '#F1F5F9'; border = '#475569'; shape = 'database';
+    fill = '#C8E6C9'; border = '#2E7D32'; shape = 'input';               // Input — rect + hexagon (2 Hex)
   }
 
   return { shape, fill, border }
@@ -126,6 +126,15 @@ function NodeBg({ shape, fill, border }: { shape: string, fill: string, border: 
       <svg className="absolute inset-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 100 100" style={{ filter: dropShadow }}>
         <path d="M 10,20 A 40,12 0 0,0 90,20 L 90,80 A 40,12 0 0,1 10,80 Z" fill={fill} stroke={border} strokeWidth="2" vectorEffect="non-scaling-stroke" />
         <ellipse cx="50" cy="20" rx="40" ry="12" fill={fill} stroke={border} strokeWidth="2" vectorEffect="non-scaling-stroke" />
+      </svg>
+    )
+  }
+  if (shape === 'input') {
+    // "2 Hex" — Rect in front, small Hexagon peeking behind on the right
+    return (
+      <svg className="absolute inset-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 100 100" style={{ filter: dropShadow }}>
+        <polygon points="70,8 88,8 98,28 98,72 88,92 70,92" fill={fill} stroke={border} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+        <rect x="2" y="2" width="80" height="96" rx="6" fill={fill} stroke={border} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
       </svg>
     )
   }
@@ -237,7 +246,10 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
   const dispatch = useAppDispatch()
   const { scale, tx, ty, handMode, magnifierMode, pendingAddType, mode, selectedEditEdgeId } = useAppSelector((s) => s.canvas)
   const viewportRef = useRef<HTMLDivElement | null>(null)
+  const scaleRef = useRef(scale)
+  scaleRef.current = scale
   const transformLayerRef = useRef<HTMLDivElement | null>(null)
+  const [containerW, setContainerW] = useState(1200)
 
   const [dragging, setDragging] = useState(false)
   const lastPointerRef = useRef<{ x: number; y: number } | null>(null)
@@ -261,10 +273,11 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
     return m
   }, [safeDiagram.lanes])
 
-  // Horizontal Scrolling / Dynamic Lane Width Logic
-  const MIN_LANE_WIDTH = 350;
-  const computedCanvasWidth = Math.max(safeDiagram.canvas.width || 2000, safeDiagram.lanes.length * MIN_LANE_WIDTH);
-  const laneWidth = safeDiagram.lanes.length > 0 ? computedCanvasWidth / safeDiagram.lanes.length : computedCanvasWidth;
+  // Dynamic lane width — fills viewport based on number of lanes
+  const laneWidth = safeDiagram.lanes.length > 0
+    ? Math.max(180, containerW / safeDiagram.lanes.length)
+    : containerW;
+  const computedCanvasWidth = laneWidth * Math.max(1, safeDiagram.lanes.length);
 
   const headerH = 110;
   const rowGap = 90;
@@ -426,8 +439,8 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
     const px = clientX - rect.left
     const py = clientY - rect.top
 
-    const worldX = (el.scrollLeft + px) / scale
-    const worldY = (el.scrollTop + py) / scale
+    const worldX = (el.scrollLeft + px) / scaleRef.current
+    const worldY = (el.scrollTop + py) / scaleRef.current
 
     const clampedScale = Math.max(0.05, Math.min(4.0, nextScale))
     dispatch(setScale(clampedScale))
@@ -470,15 +483,51 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
   useImperativeHandle(ref, () => ({
     zoomIn: () => {
       const rect = viewportRef.current?.getBoundingClientRect()
-      if (rect) zoomAround(scale * 1.15, rect.left + rect.width / 2, rect.top + rect.height / 2)
+      if (rect) zoomAround(scaleRef.current * 1.15, rect.left + rect.width / 2, rect.top + rect.height / 2)
     },
     zoomOut: () => {
       const rect = viewportRef.current?.getBoundingClientRect()
-      if (rect) zoomAround(scale * 0.85, rect.left + rect.width / 2, rect.top + rect.height / 2)
+      if (rect) zoomAround(scaleRef.current * 0.85, rect.left + rect.width / 2, rect.top + rect.height / 2)
     },
     reset: resetToLeft,
     fit,
   }), [dispatch, scale, docHeight, computedCanvasWidth])
+
+  // Non-passive wheel zoom at cursor position
+  useEffect(() => {
+    const el = viewportRef.current
+    if (!el) return
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const s = scaleRef.current
+      const nextScale = s * (e.deltaY > 0 ? 0.92 : 1.08)
+      const clamped = Math.max(0.05, Math.min(4.0, nextScale))
+      const rect = el.getBoundingClientRect()
+      const px = e.clientX - rect.left
+      const py = e.clientY - rect.top
+      const worldX = (el.scrollLeft + px) / s
+      const worldY = (el.scrollTop + py) / s
+      dispatch(setScale(clamped))
+      scaleRef.current = clamped
+      requestAnimationFrame(() => {
+        el.scrollLeft = worldX * clamped - px
+        el.scrollTop = worldY * clamped - py
+      })
+    }
+    el.addEventListener('wheel', handleWheel, { passive: false })
+    return () => el.removeEventListener('wheel', handleWheel)
+  }, [dispatch])
+
+  // Viewport size observer for dynamic lane width
+  useEffect(() => {
+    const el = viewportRef.current
+    if (!el) return
+    const update = () => setContainerW(el.clientWidth)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   return (
     <div className={['relative h-full w-full overflow-hidden', className ?? ''].join(' ')}>
@@ -493,11 +542,10 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
             dispatch(setTranslate({ tx: -el.scrollLeft, ty: -el.scrollTop }))
           }
         }}
-        onWheel={(e) => {
-          if (e.ctrlKey || e.metaKey) {
-            e.preventDefault()
-            zoomAround(scale * (e.deltaY > 0 ? 0.92 : 1.08), e.clientX, e.clientY)
-          }
+        onDoubleClick={(e) => {
+          const target = e.target as HTMLElement
+          if (target.closest('[data-node-id]') || target.closest('[data-lane-id]') || target.closest('[data-person-id]')) return
+          fit()
         }}
         onPointerDown={(e) => {
           if (magnifierMode) {
@@ -730,6 +778,7 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
         scale={scale}
         tx={tx}
         ty={ty}
+        canvasWidth={computedCanvasWidth}
         onJump={(next) => {
           const vp = viewportRef.current
           if (vp) {
@@ -751,17 +800,17 @@ type MiniMapProps = {
   scale: number
   tx: number
   ty: number
+  canvasWidth: number
   onJump: (pos: { tx: number; ty: number }) => void
   positionedNodes: PositionedRoadmapNode[]
   edges: any[]
 }
 
-function MiniMap({ diagram, docHeight, viewportRef, scale, tx, ty, onJump, positionedNodes, edges }: MiniMapProps) {
-  const miniWidth = 220
-  const miniHeight = 160
+function MiniMap({ docHeight, viewportRef, scale, tx, ty, canvasWidth, onJump, positionedNodes, edges }: MiniMapProps) {
+  const miniWidth = 280
+  const miniHeight = 200
 
-  const MIN_LANE_WIDTH = 350;
-  const computedCanvasWidth = Math.max(diagram.canvas?.width || 2000, diagram.lanes.length * MIN_LANE_WIDTH);
+  const computedCanvasWidth = canvasWidth;
   const s = Math.min(miniWidth / computedCanvasWidth, miniHeight / docHeight)
   const [isDragging, setIsDragging] = useState(false)
 
