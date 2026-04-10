@@ -852,11 +852,6 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
             </div>
 
             <svg className="pointer-events-none absolute inset-0 z-0" width={computedCanvasWidth} height={docHeight}>
-              <defs>
-                <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
-                  <polygon points="0 0, 10 3, 0 6" fill="var(--color-bg-sap-function)" />
-                </marker>
-              </defs>
               {drawingEdge && (() => {
                 const srcNode = nodesById.get(drawingEdge.sourceId)
                 if (!srcNode) return null
@@ -887,22 +882,26 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
                 let pathD: string
                 let labelX: number
                 let labelY: number
-                const isVertical = (e.fromAnchor === 'bottom' && e.toAnchor === 'top') ||
-                                   (e.fromAnchor === 'top' && e.toAnchor === 'bottom')
-                const isMixed = (e.fromAnchor === 'bottom' || e.fromAnchor === 'top') &&
-                                (e.toAnchor === 'left' || e.toAnchor === 'right')
 
-                if (isVertical) {
+                const fromDir = (e.fromAnchor === 'top' || e.fromAnchor === 'bottom') ? 'V' : 'H'
+                const toDir = (e.toAnchor === 'top' || e.toAnchor === 'bottom') ? 'V' : 'H'
+
+                if (fromDir === 'V' && toDir === 'V') {
                   // Straight vertical (with optional horizontal offset for parallel edges)
                   const midY = (fromPt.y + toPt.y) / 2 + offset
                   pathD = `M ${fromPt.x} ${fromPt.y} L ${fromPt.x} ${midY} L ${toPt.x} ${midY} L ${toPt.x} ${toPt.y}`
                   labelX = Math.max(fromPt.x, toPt.x) + 10
                   labelY = midY - 5
-                } else if (isMixed) {
+                } else if (fromDir === 'V' && toDir === 'H') {
                   // L-shaped: go vertical first, then horizontal
                   pathD = `M ${fromPt.x} ${fromPt.y} L ${fromPt.x} ${toPt.y} L ${toPt.x} ${toPt.y}`
                   labelX = (fromPt.x + toPt.x) / 2
                   labelY = toPt.y - 10
+                } else if (fromDir === 'H' && toDir === 'V') {
+                  // L-shaped: go horizontal first, then vertical
+                  pathD = `M ${fromPt.x} ${fromPt.y} L ${toPt.x} ${fromPt.y} L ${toPt.x} ${toPt.y}`
+                  labelX = (fromPt.x + toPt.x) / 2
+                  labelY = fromPt.y - 10
                 } else {
                   // Standard horizontal→vertical→horizontal (stepped)
                   const midX = (fromPt.x + toPt.x) / 2 + offset
@@ -923,11 +922,17 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
                       }
                     }}
                   >
+                    <defs>
+                      <marker id={`arrowhead-${e.id}`} markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                        <polygon points="0 0, 10 3, 0 6" fill={strokeColor} />
+                      </marker>
+                    </defs>
+
                     <path d={pathD}
                       stroke="transparent" strokeWidth={15} fill="none" />
 
                     <path d={pathD}
-                      stroke={strokeColor} strokeWidth={isSelectedEdge ? 3 : 2} fill="none" strokeOpacity={0.85} strokeLinecap="round" strokeLinejoin="round" markerEnd="url(#arrowhead)" />
+                      stroke={strokeColor} strokeWidth={isSelectedEdge ? 3 : 2} fill="none" strokeOpacity={0.85} strokeLinecap="round" strokeLinejoin="round" markerEnd={`url(#arrowhead-${e.id})`} />
                     <circle cx={fromPt.x} cy={fromPt.y} r={3.5} fill={strokeColor} opacity={0.9} />
                     <circle cx={toPt.x} cy={toPt.y} r={3.5} fill={strokeColor} opacity={0.9} />
                     {e.label && (
