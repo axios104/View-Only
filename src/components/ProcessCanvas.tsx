@@ -160,7 +160,7 @@ function Node({ n, onClick, onPointerDown, onAnchorDown, onMouseEnter, onMouseLe
 
   const { shape, fill, border } = getMappedNodeStyle(n)
 
-  const base = 'absolute grid select-none place-items-center text-center text-[11px] leading-snug transition-all duration-200 z-10'
+  const base = 'absolute grid select-none place-items-center text-center text-[11px] leading-snug transition duration-200 z-10'
 
   return (
     <div
