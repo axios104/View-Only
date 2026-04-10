@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAppSelector, useAppDispatch } from '../store/hooks'
-import { setHandMode, setMagnifierMode, setMode, setSelectedEditNodeId, setSelectedEditEdgeId } from '../store/canvasSlice'
+import { setHandMode, setMagnifierMode, setMode, setSelectedEditNodeIds, setSelectedEditEdgeId } from '../store/canvasSlice'
 import { fetchDiagram, addNode, removeNode, removeEdge, updateNodeLabel, undo, redo, addLane, removeLane, updateLane, updateNodeInfo } from '../store/diagramSlice'
 import { getNodeDetails, saveRoadmapDiagram } from '../services/roadmapApi'
 import type { Person, Lane, NodeDetails, RoadmapDiagram } from '../types/roadmap'
@@ -25,7 +25,7 @@ export function RoadmapView() {
   const [editingNode, setEditingNode] = useState<PositionedRoadmapNode | null>(null)
 
   const { activeTab } = useAppSelector((s) => s.ui)
-  const { handMode, magnifierMode, mode, selectedEditNodeId, selectedEditEdgeId } = useAppSelector((s) => s.canvas)
+  const { handMode, magnifierMode, mode, selectedEditNodeIds, selectedEditEdgeId } = useAppSelector((s) => s.canvas)
   const { data: diagram, loading, error } = useAppSelector((s) => s.diagram)
 
   const isAdmin = activeTab === 'Model Edit';
@@ -41,14 +41,14 @@ export function RoadmapView() {
       dispatch(setMagnifierMode(false))
     } else {
       dispatch(setMode('view'))
-      dispatch(setSelectedEditNodeId(null))
+      dispatch(setSelectedEditNodeIds([]))
       dispatch(setSelectedEditEdgeId(null))
     }
   }, [isAdmin, dispatch])
 
   const handleNodeClick = async (node: PositionedRoadmapNode) => {
     if (mode === 'edit') {
-      dispatch(setSelectedEditNodeId(node.id))
+      dispatch(setSelectedEditNodeIds([node.id]))
       return
     }
 
@@ -198,20 +198,20 @@ export function RoadmapView() {
           posY: worldY
         }
       }))
-      dispatch(setSelectedEditNodeId(id))
+      dispatch(setSelectedEditNodeIds([id]))
     }
   }
 
   const handleBackgroundClick = () => {
     if (mode === 'edit') {
-      dispatch(setSelectedEditNodeId(null))
+      dispatch(setSelectedEditNodeIds([]))
     }
   }
 
   const handleDeleteNode = () => {
-    if (selectedEditNodeId) {
-      dispatch(removeNode(selectedEditNodeId))
-      dispatch(setSelectedEditNodeId(null))
+    if (selectedEditNodeIds && selectedEditNodeIds.length > 0) {
+      selectedEditNodeIds.forEach(id => dispatch(removeNode(id)))
+      dispatch(setSelectedEditNodeIds([]))
     } else if (selectedEditEdgeId) {
       dispatch(removeEdge(selectedEditEdgeId))
       dispatch(setSelectedEditEdgeId(null))
@@ -226,12 +226,12 @@ export function RoadmapView() {
       if (isAdmin && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); dispatch(redo()); return; }
 
       if (isAdmin && (e.key === 'Backspace' || e.key === 'Delete')) {
-        if (selectedEditNodeId || selectedEditEdgeId) { e.preventDefault(); handleDeleteNode(); }
+        if ((selectedEditNodeIds && selectedEditNodeIds.length > 0) || selectedEditEdgeId) { e.preventDefault(); handleDeleteNode(); }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [dispatch, selectedEditNodeId, selectedEditEdgeId, isAdmin]);
+  }, [dispatch, selectedEditNodeIds, selectedEditEdgeId, isAdmin]);
 
 
   return (
@@ -251,7 +251,7 @@ export function RoadmapView() {
 
           <button
             type="button"
-            onClick={() => { dispatch(setMode('view')); dispatch(setSelectedEditNodeId(null)); }}
+            onClick={() => { dispatch(setMode('view')); dispatch(setSelectedEditNodeIds([])); }}
             className={`grid size-10 place-items-center rounded-full text-sm transition-colors ${mode === 'view' ? 'bg-primary text-primary-foreground shadow-md' : 'text-text-primary hover:bg-btn'}`}
             title="View Mode"
           >
@@ -364,7 +364,7 @@ export function RoadmapView() {
 
               <button
                 onClick={handleDeleteNode}
-                disabled={!selectedEditNodeId && !selectedEditEdgeId}
+                disabled={!(selectedEditNodeIds && selectedEditNodeIds.length > 0) && !selectedEditEdgeId}
                 className="grid size-10 place-items-center rounded-xl text-red-500 hover:bg-red-50 disabled:opacity-30 transition-colors"
                 title="Delete Selected Node/Edge"
               >
@@ -417,15 +417,15 @@ export function RoadmapView() {
           <button onClick={() => canvasRef.current?.zoomIn()} className="grid size-10 place-items-center rounded-xl text-[#2c3e50] hover:bg-btn transition-colors" title="Zoom In"><Plus size={20} /></button>
         </div>
 
-        {mode === 'edit' && selectedEditNodeId && diagram?.nodes.find(n => n.id === selectedEditNodeId) && (() => {
-          const nd = diagram.nodes.find(n => n.id === selectedEditNodeId)!;
+        {mode === 'edit' && selectedEditNodeIds?.length === 1 && diagram?.nodes.find(n => n.id === selectedEditNodeIds[0]) && (() => {
+          const nd = diagram.nodes.find(n => n.id === selectedEditNodeIds[0])!;
           return (
             <div className="absolute top-16 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 rounded-md border border-border bg-white p-2 shadow-lg">
               <span className="text-xs font-semibold text-text-primary px-1">Editing:</span>
               <input
                 type="text"
                 value={nd.label || ''}
-                onChange={(e) => dispatch(updateNodeLabel({ id: selectedEditNodeId, label: e.target.value }))}
+                onChange={(e) => dispatch(updateNodeLabel({ id: selectedEditNodeIds[0], label: e.target.value }))}
                 className="text-sm border border-slate-200 bg-slate-50 text-slate-800 rounded px-2 py-1.5 w-48 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Node Label"
               />
@@ -438,6 +438,12 @@ export function RoadmapView() {
             </div>
           )
         })()}
+
+        {mode === 'edit' && selectedEditNodeIds?.length > 1 && (
+          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 rounded-md border border-border bg-white p-2 shadow-lg text-sm font-semibold text-slate-700">
+            {selectedEditNodeIds.length} nodes selected
+          </div>
+        )}
 
         {diagram ? (
           <ProcessCanvas

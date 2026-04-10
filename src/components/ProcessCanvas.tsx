@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import type { Anchor, Person, RoadmapDiagram, Lane } from '../types/roadmap'
-import { setTranslate, setScale, setSelectedEditEdgeId, setSelectedEditNodeId } from '../store/canvasSlice'
+import { setTranslate, setScale, setSelectedEditEdgeId, setSelectedEditNodeIds, setSelectedEditNodeId } from '../store/canvasSlice'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
 import { updateNodeCoords, addEdge, removeEdge } from '../store/diagramSlice'
 import { layoutRoadmapNodes, type PositionedRoadmapNode } from '../layout/layoutRoadmap'
@@ -155,8 +155,8 @@ function Node({ n, onClick, onPointerDown, onAnchorDown, onMouseEnter, onMouseLe
   onMouseEnter?: (n: PositionedRoadmapNode) => void,
   onMouseLeave?: (n: PositionedRoadmapNode) => void,
 }) {
-  const { selectedEditNodeId, mode, handMode } = useAppSelector((s) => s.canvas)
-  const isSelected = mode === 'edit' && selectedEditNodeId === n.id
+  const { selectedEditNodeIds, mode, handMode } = useAppSelector((s) => s.canvas)
+  const isSelected = mode === 'edit' && selectedEditNodeIds?.includes(n.id)
 
   const { shape, fill, border } = getMappedNodeStyle(n)
 
@@ -244,7 +244,7 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
   }), [diagram])
 
   const dispatch = useAppDispatch()
-  const { scale, tx, ty, handMode, magnifierMode, pendingAddType, mode, selectedEditEdgeId } = useAppSelector((s) => s.canvas)
+  const { scale, tx, ty, handMode, magnifierMode, pendingAddType, mode, selectedEditNodeIds, selectedEditEdgeId } = useAppSelector((s) => s.canvas)
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const scaleRef = useRef(scale)
   scaleRef.current = scale
@@ -255,7 +255,10 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
   const lastPointerRef = useRef<{ x: number; y: number } | null>(null)
   const clickCandidateRef = useRef<{ personId: string | null; nodeId: string | null; laneId: string | null; x: number; y: number; moved: boolean }>({ personId: null, nodeId: null, laneId: null, x: 0, y: 0, moved: false })
 
-  const [draggedNode, setDraggedNode] = useState<{ id: string, x: number, y: number, laneId?: string } | null>(null)
+  const [draggedNodes, setDraggedNodes] = useState<Record<string, { x: number, y: number, laneId?: string }>>({})
+  const [marqueeBox, setMarqueeBox] = useState<{ startX: number, startY: number, endX: number, endY: number } | null>(null)
+  const isDraggingMarqueeRef = useRef(false)
+  const isDraggingNodeRef = useRef(false)
 
   type DrawingEdge = { sourceId: string; sourceAnchor: Anchor; x: number; y: number }
   const [drawingEdge, setDrawingEdge] = useState<DrawingEdge | null>(null)
@@ -388,19 +391,27 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
 
   const renderNodes = useMemo(() => {
     return positionedNodes.map(n => {
-      if (draggedNode?.id === n.id) {
-        return { ...n, x: draggedNode.x, y: draggedNode.y } as PositionedRoadmapNode
+      if (draggedNodes[n.id]) {
+        return { ...n, x: draggedNodes[n.id].x, y: draggedNodes[n.id].y } as PositionedRoadmapNode
       }
       return n
     })
-  }, [positionedNodes, draggedNode])
+  }, [positionedNodes, draggedNodes])
 
   const handleNodePointerDown = (e: React.PointerEvent, n: PositionedRoadmapNode) => {
     if (mode !== 'edit' || handMode) return
     e.stopPropagation()
     e.currentTarget.setPointerCapture(e.pointerId)
 
-    dispatch(setSelectedEditNodeId(n.id))
+    const startPos = { x: e.clientX, y: e.clientY }
+    isDraggingNodeRef.current = false
+
+    let currentSelection = selectedEditNodeIds || []
+    if (!currentSelection.includes(n.id)) {
+      if (e.shiftKey || e.ctrlKey || e.metaKey) currentSelection = [...currentSelection, n.id]
+      else currentSelection = [n.id]
+      dispatch(setSelectedEditNodeIds(currentSelection))
+    }
 
     const el = transformLayerRef.current
     if (!el) return
@@ -410,51 +421,69 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
     const py = e.clientY - rect.top
     const worldX = px / scale
     const worldY = py / scale
-    const offsetX = worldX - n.x
-    const offsetY = worldY - n.y
 
-    setDraggedNode({ id: n.id, x: n.x, y: n.y })
+    const initialDrag: Record<string, {x: number, y: number, offsetX: number, offsetY: number}> = {}
+    currentSelection.forEach(id => {
+      const node = nodesById.get(id)
+      if (node) {
+        initialDrag[id] = { x: node.x, y: node.y, offsetX: worldX - node.x, offsetY: worldY - node.y }
+      }
+    })
+    setDraggedNodes(initialDrag)
 
     const onMove = (ev: PointerEvent) => {
       const ex = ev.clientX - rect.left
       const ey = ev.clientY - rect.top
-      const worldX = ex / scale
-      const worldY = ey / scale
+      const currentWorldX = ex / scale
+      const currentWorldY = ey / scale
 
-      let laneIdx = 0;
-      for (let i = 0; i < laneOffsets.length; i++) {
-        if (worldX >= laneOffsets[i]) {
-          laneIdx = i;
-        } else {
-          break;
-        }
+      if (Math.abs(ev.clientX - startPos.x) > 3 || Math.abs(ev.clientY - startPos.y) > 3) {
+        isDraggingNodeRef.current = true
       }
-      laneIdx = Math.max(0, Math.min(safeDiagram.lanes.length - 1, laneIdx))
-      const hoveredLaneId = safeDiagram.lanes[laneIdx]?.id
 
-      const thisLaneWidth = laneWidths[laneIdx] ?? laneWidth;
-      const thisLaneOffset = laneOffsets[laneIdx] ?? (laneIdx * laneWidth);
+      setDraggedNodes(prev => {
+        const next = { ...prev }
+        Object.keys(next).forEach(id => {
+          const init = initialDrag[id]
+          if (!init) return
+          const node = nodesById.get(id)
+          if (!node) return
 
-      const laneMinX = thisLaneOffset + 8
-      const laneMaxX = laneMinX + thisLaneWidth - n.w - 16
+          const nx = currentWorldX - init.offsetX
+          const ny = currentWorldY - init.offsetY
+          
+          const nodeWorldX = nx + node.w / 2
+          let specificLaneIdx = 0;
+          for (let i = 0; i < laneOffsets.length; i++) {
+            if (nodeWorldX >= laneOffsets[i]) specificLaneIdx = i; else break;
+          }
+          specificLaneIdx = Math.max(0, Math.min(safeDiagram.lanes.length - 1, specificLaneIdx))
 
-      const nx = worldX - offsetX
-      const ny = worldY - offsetY
-      const clampedX = Math.max(laneMinX, Math.min(laneMaxX, nx))
+          const hoveredLaneId = safeDiagram.lanes[specificLaneIdx]?.id
+          const thisLaneWidth = laneWidths[specificLaneIdx] ?? laneWidth;
+          const thisLaneOffset = laneOffsets[specificLaneIdx] ?? (specificLaneIdx * laneWidth);
 
-      setDraggedNode({ id: n.id, x: clampedX, y: ny, laneId: hoveredLaneId })
+          const laneMinX = thisLaneOffset + 8
+          const laneMaxX = laneMinX + thisLaneWidth - node.w - 16
+
+          const clampedX = Math.max(laneMinX, Math.min(laneMaxX, nx))
+          next[id] = { ...next[id], x: clampedX, y: ny, laneId: hoveredLaneId }
+        })
+        return next
+      })
     }
 
     const onUp = (ev: PointerEvent) => {
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
-      setDraggedNode(prev => {
-        if (prev) {
-          dispatch(updateNodeCoords({ id: n.id, posX: prev.x, posY: prev.y, laneId: prev.laneId }))
-        }
-        return null
+      setDraggedNodes(prev => {
+        Object.entries(prev).forEach(([id, pos]) => {
+          dispatch(updateNodeCoords({ id, posX: pos.x, posY: pos.y, laneId: pos.laneId }))
+        })
+        return {}
       })
       try { (ev.target as Element).releasePointerCapture(ev.pointerId) } catch { }
+      setTimeout(() => { isDraggingNodeRef.current = false }, 50)
     }
 
     window.addEventListener('pointermove', onMove)
@@ -564,11 +593,15 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
     fit,
   }), [dispatch, scale, docHeight, computedCanvasWidth])
 
+  const handModeRef = useRef(handMode)
+  useEffect(() => { handModeRef.current = handMode }, [handMode])
+
   // Non-passive wheel zoom at cursor position
   useEffect(() => {
     const el = viewportRef.current
     if (!el) return
     const handleWheel = (e: WheelEvent) => {
+      if (!handModeRef.current && !e.ctrlKey && !e.metaKey) return
       e.preventDefault()
       const s = scaleRef.current
       const nextScale = s * (e.deltaY > 0 ? 0.92 : 1.08)
@@ -625,7 +658,53 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
           }
 
           const isMiddle = e.button === 1
-          if (!handMode && !isMiddle) return
+          if (!handMode && !isMiddle && mode !== 'edit') return
+
+          if (!handMode && mode === 'edit') {
+            const vp = viewportRef.current
+            if (!vp) return
+            const rect = vp.getBoundingClientRect()
+            const startX = (e.clientX - rect.left + vp.scrollLeft) / scale
+            const startY = (e.clientY - rect.top + vp.scrollTop) / scale
+            
+            setMarqueeBox({ startX, startY, endX: startX, endY: startY })
+            isDraggingMarqueeRef.current = false
+            e.currentTarget.setPointerCapture(e.pointerId)
+            
+            const onMarqueeMove = (ev: PointerEvent) => {
+              isDraggingMarqueeRef.current = true
+              const currentX = (ev.clientX - rect.left + vp.scrollLeft) / scale
+              const currentY = (ev.clientY - rect.top + vp.scrollTop) / scale
+              setMarqueeBox(prev => prev ? { ...prev, endX: currentX, endY: currentY } : null)
+            }
+            
+            const onMarqueeUp = (ev: PointerEvent) => {
+              window.removeEventListener('pointermove', onMarqueeMove)
+              window.removeEventListener('pointerup', onMarqueeUp)
+              setMarqueeBox(prev => {
+                if (prev) {
+                  const minX = Math.min(prev.startX, prev.endX)
+                  const maxX = Math.max(prev.startX, prev.endX)
+                  const minY = Math.min(prev.startY, prev.endY)
+                  const maxY = Math.max(prev.startY, prev.endY)
+                  
+                  if (Math.abs(maxX - minX) > 5 || Math.abs(maxY - minY) > 5) {
+                    const intersected = positionedNodes.filter(n => {
+                       return !(n.x > maxX || n.x + n.w < minX || n.y > maxY || n.y + n.h < minY)
+                    })
+                    dispatch(setSelectedEditNodeIds(intersected.map(n => n.id)))
+                  }
+                }
+                return null
+              })
+              try { e.currentTarget.releasePointerCapture(e.pointerId) } catch { }
+              setTimeout(() => { isDraggingMarqueeRef.current = false }, 50)
+            }
+            
+            window.addEventListener('pointermove', onMarqueeMove)
+            window.addEventListener('pointerup', onMarqueeUp)
+            return
+          }
 
           lastPointerRef.current = { x: e.clientX, y: e.clientY }
           setDragging(true)
@@ -704,8 +783,8 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
           <div
             ref={transformLayerRef}
             onClick={(e) => {
-              if (handMode) return;
-              if ((e.target as HTMLElement).closest('[data-node-id]') || (e.target as HTMLElement).closest('[data-lane-id]')) return;
+              if (handMode || isDraggingMarqueeRef.current) return;
+              if ((e.target as HTMLElement).closest('[data-node-id]')) return;
 
               const rect = transformLayerRef.current?.getBoundingClientRect();
               if (!rect) return;
@@ -713,6 +792,16 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
               const py = e.clientY - rect.top;
               const worldX = px / scale;
               const worldY = py / scale;
+              
+              const laneEl = (e.target as HTMLElement).closest('[data-lane-id]');
+              if (laneEl) {
+                const laneId = laneEl.getAttribute('data-lane-id');
+                if (laneId && (!selectedEditNodeIds || selectedEditNodeIds.length === 0) && !selectedEditEdgeId) {
+                  onLaneClick?.(lanesById.get(laneId)!);
+                  return;
+                }
+              }
+
               onBackgroundClick?.(worldX, worldY);
             }}
             onDragOver={(e) => e.preventDefault()}
@@ -771,20 +860,21 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
               {drawingEdge && (() => {
                 const srcNode = nodesById.get(drawingEdge.sourceId)
                 if (!srcNode) return null
-                const pt = anchorPoint({ ...srcNode, x: draggedNode?.id === srcNode.id ? draggedNode.x : srcNode.x, y: draggedNode?.id === srcNode.id ? draggedNode.y : srcNode.y }, drawingEdge.sourceAnchor)
+                const draggedSrc = draggedNodes[srcNode.id]
+                const pt = anchorPoint({ ...srcNode, x: draggedSrc ? draggedSrc.x : srcNode.x, y: draggedSrc ? draggedSrc.y : srcNode.y }, drawingEdge.sourceAnchor)
                 return (
                   <path d={`M ${pt.x} ${pt.y} L ${drawingEdge.x} ${drawingEdge.y}`} stroke="var(--color-primary)" strokeWidth={3} fill="none" strokeDasharray="5,5" />
                 )
               })()}
               {edges.map((e) => {
-                const draggedSrc = draggedNode && e.source === draggedNode.id
-                const draggedTgt = draggedNode && e.target === draggedNode.id
+                const draggedSrc = draggedNodes[e.source]
+                const draggedTgt = draggedNodes[e.target]
                 const sN = nodesById.get(e.source)
                 const tN = nodesById.get(e.target)
                 if (!sN || !tN) return null
 
-                const fromNode = draggedSrc ? { ...sN, x: draggedNode.x, y: draggedNode.y } : sN
-                const toNode = draggedTgt ? { ...tN, x: draggedNode.x, y: draggedNode.y } : tN
+                const fromNode = draggedSrc ? { ...sN, x: draggedSrc.x, y: draggedSrc.y } : sN
+                const toNode = draggedTgt ? { ...tN, x: draggedTgt.x, y: draggedTgt.y } : tN
 
                 const fromPt = anchorPoint(fromNode, e.fromAnchor ?? 'right')
                 const toPt = anchorPoint(toNode, e.toAnchor ?? 'left')
@@ -849,12 +939,28 @@ export const ProcessCanvas = forwardRef<ProcessCanvasApi, ProcessCanvasProps>(fu
                   </g>
                 )
               })}
+              {marqueeBox && (
+                <rect 
+                  x={Math.min(marqueeBox.startX, marqueeBox.endX)}
+                  y={Math.min(marqueeBox.startY, marqueeBox.endY)}
+                  width={Math.abs(marqueeBox.endX - marqueeBox.startX)}
+                  height={Math.abs(marqueeBox.endY - marqueeBox.startY)}
+                  fill="rgba(59, 130, 246, 0.2)"
+                  stroke="rgba(59, 130, 246, 0.8)"
+                  strokeWidth={2}
+                  strokeDasharray="4 4"
+                  pointerEvents="none"
+                />
+              )}
             </svg>
             {renderNodes.map((n) => (
               <Node
                 key={n.id}
                 n={n}
-                onClick={onNodeClick}
+                onClick={(node) => {
+                  if (isDraggingNodeRef.current) return;
+                  onNodeClick?.(node)
+                }}
                 onPointerDown={handleNodePointerDown}
                 onAnchorDown={handleAnchorDown}
                 onMouseEnter={() => { hoveredNodeRef.current = n.id }}
@@ -901,8 +1007,8 @@ type MiniMapProps = {
 }
 
 function MiniMap({ docHeight, viewportRef, scale, tx, ty, canvasWidth, onJump, positionedNodes, edges }: MiniMapProps) {
-  const miniWidth = 280
-  const miniHeight = 200
+  const miniWidth = 200
+  const miniHeight = 140
 
   const computedCanvasWidth = canvasWidth;
   const s = Math.min(miniWidth / computedCanvasWidth, miniHeight / docHeight)
@@ -968,7 +1074,7 @@ function MiniMap({ docHeight, viewportRef, scale, tx, ty, canvasWidth, onJump, p
 
   const positionStyle: React.CSSProperties = customPos
     ? { left: customPos.x, top: customPos.y, cursor: isDraggingMinimap ? 'grabbing' : 'grab' }
-    : { right: 16, bottom: 16, cursor: 'grab' }
+    : { right: 104, bottom: 16, cursor: 'grab' }
 
   return (
     <div

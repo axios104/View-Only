@@ -7,7 +7,7 @@ export type CanvasState = {
   handMode: boolean
   magnifierMode: boolean
   mode: 'none' | 'view' | 'edit'
-  selectedEditNodeId: string | null
+  selectedEditNodeIds: string[]
   selectedEditEdgeId: string | null
   pendingAddType: string | null
 }
@@ -19,7 +19,7 @@ const initialState: CanvasState = {
   handMode: false,
   magnifierMode: false,
   mode: 'view',
-  selectedEditNodeId: null,
+  selectedEditNodeIds: [],
   selectedEditEdgeId: null,
   pendingAddType: null,
 }
@@ -48,17 +48,21 @@ const canvasSlice = createSlice({
     setMode(state, action: PayloadAction<'none' | 'view' | 'edit'>) {
       state.mode = action.payload
       if (action.payload !== 'edit') {
-        state.selectedEditNodeId = null
+        state.selectedEditNodeIds = []
         state.pendingAddType = null
       }
     },
+    setSelectedEditNodeIds(state, action: PayloadAction<string[]>) {
+      state.selectedEditNodeIds = action.payload
+      if (action.payload.length > 0) state.selectedEditEdgeId = null // Mutually exclusive
+    },
     setSelectedEditNodeId(state, action: PayloadAction<string | null>) {
-      state.selectedEditNodeId = action.payload
+      state.selectedEditNodeIds = action.payload ? [action.payload] : []
       if (action.payload) state.selectedEditEdgeId = null // Mutually exclusive
     },
     setSelectedEditEdgeId(state, action: PayloadAction<string | null>) {
       state.selectedEditEdgeId = action.payload
-      if (action.payload) state.selectedEditNodeId = null
+      if (action.payload) state.selectedEditNodeIds = []
     },
     setPendingAddType(state, action: PayloadAction<string | null>) {
       state.pendingAddType = action.payload
@@ -66,5 +70,5 @@ const canvasSlice = createSlice({
   },
 })
 
-export const { setScale, setTranslate, setHandMode, setMagnifierMode, setMode, setSelectedEditNodeId, setSelectedEditEdgeId, setPendingAddType } = canvasSlice.actions
+export const { setScale, setTranslate, setHandMode, setMagnifierMode, setMode, setSelectedEditNodeIds, setSelectedEditNodeId, setSelectedEditEdgeId, setPendingAddType } = canvasSlice.actions
 export const canvasReducer = canvasSlice.reducer
